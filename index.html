@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#4e2c16">
+<meta name="description" content="GEOSISMOSLATAM.PE - Monitoreo y análisis sísmico probabilístico del Perú">
+<title>GEOSISMOSLATAM.PE</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="hero">
+  <div class="brand">
+    <img src="logo.svg" class="brand-logo" alt="GEOSISMOSLATAM.PE">
+    <div>
+      <h1>GEOSISMOSLATAM.PE</h1>
+      <p>MONITOREO Y ANÁLISIS SÍSMICO DEL PERÚ</p>
+      <small>Ciencia · Tecnología · Prevención</small>
+    </div>
+  </div>
+  <div class="hero-right">
+    <div class="status"><i></i><span id="liveStatus">Actualización automática</span><b id="lastUpdate">—</b></div>
+    <div class="country">🇵🇪 PERÚ</div>
+    <div class="free">GRATUITO</div>
+  </div>
+</header>
+
+<nav class="nav">
+  <button class="active">⌂ INICIO</button>
+  <button onclick="document.getElementById('maps').scrollIntoView({behavior:'smooth'})">◉ MAPAS</button>
+  <button onclick="document.getElementById('recent').scrollIntoView({behavior:'smooth'})">≋ SISMOS</button>
+  <button onclick="document.getElementById('forecastMap').scrollIntoView({behavior:'smooth'})">⌁ PROYECCIÓN</button>
+  <button onclick="document.getElementById('history').scrollIntoView({behavior:'smooth'})">▥ HISTÓRICO</button>
+  <button onclick="document.getElementById('stats').scrollIntoView({behavior:'smooth'})">▦ ESTADÍSTICAS</button>
+</nav>
+
+<div class="warning">
+  <b>IMPORTANTE:</b> el visor predictivo muestra un análisis probabilístico experimental. No reemplaza los reportes oficiales del IGP/INDECI ni constituye una predicción exacta de terremotos.
+</div>
+
+<main class="dashboard" id="maps">
+  <aside class="left">
+    <section class="panel">
+      <h3>UBICACIÓN TERRITORIAL</h3>
+      <label>Departamento</label><select id="regionSelect"><option>Seleccionar</option></select>
+      <label>Provincia</label><select id="provinceSelect" disabled><option>Seleccionar</option></select>
+      <label>Distrito</label><select id="districtSelect" disabled><option>Seleccionar</option></select>
+      <div class="ubigeo">UBIGEO: <b id="ubigeoTxt">—</b></div>
+      <button id="locateAdmin" class="primary">⌖ UBICAR EN MAPA</button>
+    </section>
+
+    <section class="panel">
+      <h3>CAPAS DE MAPA</h3>
+      <label class="toggle"><span>Imagen satelital</span><input id="satToggle" type="checkbox" checked></label>
+      <label class="toggle"><span>Límites departamentales</span><input id="depToggle" type="checkbox" checked></label>
+      <label class="toggle"><span>Límites provinciales</span><input id="provToggle" type="checkbox" checked></label>
+      <label class="toggle"><span>Límites distritales</span><input id="distToggle" type="checkbox"></label>
+      <label class="toggle"><span>Mar peruano 200 millas*</span><input id="seaToggle" type="checkbox" checked></label>
+      <label class="toggle"><span>Sismos observados</span><input id="quakeToggle" type="checkbox" checked></label>
+    </section>
+
+    <section class="panel">
+      <h3>FILTROS DE SISMOS</h3>
+      <label>Ventana</label>
+      <select id="windowSelect">
+        <option value="day">Últimas 24 h</option>
+        <option value="week" selected>Últimos 7 días</option>
+        <option value="month">Últimos 30 días</option>
+      </select>
+      <label>Magnitud mínima <b id="minMagTxt">M ≥ 2.5</b></label>
+      <input id="minMag" type="range" min="0" max="7" step=".5" value="2.5">
+      <label>Profundidad</label>
+      <select id="depthSelect">
+        <option value="all">Todas</option>
+        <option value="shallow">Superficial (&lt;70 km)</option>
+        <option value="mid">Intermedia (70–300 km)</option>
+        <option value="deep">Profunda (&gt;300 km)</option>
+      </select>
+      <button id="refreshBtn" class="primary">↻ ACTUALIZAR</button>
+    </section>
+  </aside>
+
+  <section class="center">
+    <div class="maps-grid">
+      <article class="map-panel">
+        <div class="map-title"><span class="dot"></span><b>SISMOS OCURRIDOS</b><small>Tiempo real / reciente</small></div>
+        <div id="actualMap" class="map"></div>
+      </article>
+
+      <article class="map-panel">
+        <div class="map-title"><span class="dot orange"></span><b>MODELO PROBABILÍSTICO</b><small>Análisis experimental</small></div>
+        <div id="forecastMap" class="map"></div>
+      </article>
+    </div>
+
+    <div class="analytics">
+      <article class="panel table-panel" id="recent">
+        <div class="panel-head"><b>Últimos sismos</b><span>USGS · Perú</span></div>
+        <div class="scroll"><table><thead><tr><th>Hora</th><th>M</th><th>Prof.</th><th>Ubicación</th></tr></thead><tbody id="quakeTable"></tbody></table></div>
+      </article>
+
+      <article class="panel" id="stats">
+        <div class="panel-head"><b>Análisis regional</b><span id="analysisArea">Perú</span></div>
+        <div class="kpis">
+          <div><span>Sismos 24 h</span><b id="q24">—</b></div>
+          <div><span>Sismos 7 d</span><b id="q7">—</b></div>
+          <div><span>Sismos 30 d</span><b id="q30">—</b></div>
+          <div><span>Máx.</span><b id="qmax">—</b></div>
+        </div>
+        <canvas id="magChart"></canvas>
+      </article>
+
+      <article class="panel" id="history">
+        <div class="panel-head"><b>Histórico y tendencias</b><span>magnitud / profundidad</span></div>
+        <canvas id="trendChart"></canvas>
+        <div class="trend-tag" id="trendTag">Tendencia: calculando…</div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head"><b>Distribución por profundidad</b><span>eventos visibles</span></div>
+        <canvas id="depthChart"></canvas>
+      </article>
+    </div>
+  </section>
+
+  <aside class="right">
+    <section class="panel report">
+      <h3>DETALLE / REPORTE</h3>
+      <div class="tabs"><button id="tabQuake" class="active">Sismo</button><button id="tabForecast">Proyección</button></div>
+      <div id="reportBody" class="report-body">
+        <div class="placeholder">Haz clic en un epicentro o en una zona probabilística.</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3>LEYENDA PROBABILÍSTICA</h3>
+      <div class="scale"><i class="s1"></i><span>Baja</span></div>
+      <div class="scale"><i class="s2"></i><span>Moderada</span></div>
+      <div class="scale"><i class="s3"></i><span>Elevada</span></div>
+      <div class="scale"><i class="s4"></i><span>Muy elevada</span></div>
+      <small>El índice representa concentración y tasa relativa, no certeza de ocurrencia.</small>
+    </section>
+  </aside>
+</main>
+
+<div class="ticker">
+  <b>● ALERTAS Y COMUNICADOS</b>
+  <span id="tickerText">Sistema iniciado. Esperando datos sísmicos…</span>
+</div>
+
+<footer>
+  <div class="footer-brand">
+    <img src="logo.svg" alt="">
+    <div><b>GEOSISMOSLATAM.PE</b><small>Monitoreo · Análisis · Prevención</small></div>
+  </div>
+  <div class="footer-contact">✉ Contacto: <a href="mailto:luis2399cuadrafelipa@gmail.com">luis2399cuadrafelipa@gmail.com</a></div>
+  <div class="donate">
+    <div><b>❤ Apoya este proyecto</b><small>Donaciones voluntarias vía Yape</small></div>
+    <img src="yape_qr.png" alt="QR Yape">
+  </div>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="admin_peru.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
