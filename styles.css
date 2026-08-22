@@ -23,3 +23,17 @@ body{min-width:1180px}
 footer{height:88px;background:linear-gradient(90deg,#432816,#694121,#3c2417);color:#f6e7cf;display:flex;align-items:center;justify-content:space-between;padding:8px 18px}.footer-brand{display:flex;align-items:center;gap:8px}.footer-brand img{width:55px;height:55px}.footer-brand b{display:block;font-size:18px;color:#ffe0a3}.footer-brand small{display:block;font-size:8px}.footer-contact{font-size:10px}.footer-contact a{color:#fff0ce}.donate{display:flex;align-items:center;gap:10px}.donate div b,.donate div small{display:block}.donate div small{font-size:9px}.donate img{width:72px;height:72px;object-fit:contain;background:white;border:3px solid #7d2b8e;border-radius:7px}
 canvas{max-height:165px!important}.leaflet-control-attribution{font-size:7px!important}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#fff8e9;color:#2c1c12}
 @media(max-width:1300px){body{min-width:1000px}.dashboard{grid-template-columns:170px minmax(720px,1fr) 220px}.map-panel{height:420px}.map{height:390px}.analytics .panel{height:225px}}
+
+
+/* GeoSismosLatam 2.1 — alertas rápidas y cobertura */
+.coverage-panel{grid-column:1/-1}
+.coverage-body{padding:12px}
+.coverage-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.coverage-item{border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:12px;background:rgba(255,255,255,.035);display:flex;flex-direction:column;gap:6px}
+.coverage-item.official{border-color:rgba(255,196,0,.45)}
+.coverage-item b{font-size:12px}
+.coverage-item span{font-size:11px;opacity:.78;line-height:1.4}
+.source-link{display:inline-block;margin-top:5px;padding:7px 9px;border-radius:7px;background:#173a59;color:#fff!important;text-decoration:none;font-size:10px;font-weight:700}
+.source-link:hover{filter:brightness(1.15)}
+.source-actions{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}
+@media(max-width:760px){.coverage-grid{grid-template-columns:1fr}}
