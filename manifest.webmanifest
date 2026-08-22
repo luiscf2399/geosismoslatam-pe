@@ -1,17 +1,1 @@
-{
-  "name": "GEOSISMOSLATAM.PE",
-  "short_name": "GeoSismosPE",
-  "start_url": "./index.html",
-  "scope": "./",
-  "display": "standalone",
-  "background_color": "#4b2b16",
-  "theme_color": "#4b2b16",
-  "icons": [
-    {
-      "src": "logo.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
-  ]
-}
+{"name":"GeoSismosLatam","short_name":"GeoSismos","description":"Monitoreo sísmico gratuito del Perú y análisis probabilístico experimental","start_url":"./?v=3.0.0","display":"standalone","background_color":"#ead1aa","theme_color":"#4e2c16","icons":[{"src":"logo.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}

@@ -1,3 +1,5 @@
-const C='geosismos-pe-v1';const FILES=['./','./index.html','./styles.css','./app.js','./admin_peru.js','./logo.svg','./yape_qr.png','./manifest.webmanifest'];
-self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(FILES))));
-self.addEventListener('fetch',e=>{if(new URL(e.request.url).origin===location.origin)e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)));});
+const VERSION='geosismoslatam-v3-20260822-01';
+const STATIC=['./','./index.html','./styles.css?v=3.0.0','./app.js?v=3.0.0','./logo.svg','./manifest.webmanifest'];
+self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(VERSION).then(c=>c.addAll(STATIC)).catch(()=>{}))});
+self.addEventListener('activate',e=>{e.waitUntil((async()=>{for(const k of await caches.keys())if(k!==VERSION)await caches.delete(k);await self.clients.claim()})())});
+self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET')return;const critical=u.origin===location.origin&&(u.pathname==='/'||u.pathname.endsWith('.html')||u.pathname.endsWith('.js')||u.pathname.endsWith('.css'));if(critical){e.respondWith(fetch(e.request,{cache:'no-store'}).then(r=>{const c=r.clone();caches.open(VERSION).then(x=>x.put(e.request,c));return r}).catch(()=>caches.match(e.request)));return}if(u.origin===location.origin)e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)))})
