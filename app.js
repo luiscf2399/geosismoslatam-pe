@@ -5,20 +5,24 @@ const FEEDS={
  week:'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson',
  month:'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson'
 };
+const FAST_FEED='https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson';
+const ALERT_POLL_MS=60*1000;
+const seenEventIds=new Set(JSON.parse(localStorage.getItem('geosismos_seen_ids')||'[]'));
+let fastCheckRunning=false;
+let selectedQuake=null;
 const PERU={minLat:-20.6,maxLat:.5,minLon:-82,maxLon:-68};
-const SAT_DATE=new Date(Date.now()-2*864e5).toISOString().slice(0,10);
-const satUrl=`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${SAT_DATE}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`;
-const osmUrl='https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const esriImageryUrl='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+const esriStreetUrl='https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
 const depUrl='https://raw.githubusercontent.com/orbisgeo/geojson-peru-data/master/peru_departamental_simple.geojson';
 const provUrl='https://raw.githubusercontent.com/orbisgeo/geojson-peru-data/master/peru_provincial_simple.geojson';
 const distUrl='https://raw.githubusercontent.com/orbisgeo/geojson-peru-data/master/peru_distrital_simple.geojson';
 
 let actualMap=L.map('actualMap',{zoomControl:true,minZoom:4,maxZoom:12}).setView([-9.2,-75.2],5);
 let forecastMap=L.map('forecastMap',{zoomControl:true,minZoom:4,maxZoom:12}).setView([-9.2,-75.2],5);
-let satA=L.tileLayer(satUrl,{maxZoom:9,attribution:'NASA GIBS'}).addTo(actualMap);
-let satF=L.tileLayer(satUrl,{maxZoom:9,attribution:'NASA GIBS'}).addTo(forecastMap);
-let osmA=L.tileLayer(osmUrl,{maxZoom:19,attribution:'© OpenStreetMap contributors'});
-let osmF=L.tileLayer(osmUrl,{maxZoom:19,attribution:'© OpenStreetMap contributors'});
+let satA=L.tileLayer(esriImageryUrl,{maxZoom:19,attribution:'Tiles © Esri'}).addTo(actualMap);
+let satF=L.tileLayer(esriImageryUrl,{maxZoom:19,attribution:'Tiles © Esri'}).addTo(forecastMap);
+let osmA=L.tileLayer(esriStreetUrl,{maxZoom:19,attribution:'Tiles © Esri'});
+let osmF=L.tileLayer(esriStreetUrl,{maxZoom:19,attribution:'Tiles © Esri'});
 let quakeLayers=[L.layerGroup().addTo(actualMap),L.layerGroup().addTo(forecastMap)];
 let forecastLayer=L.layerGroup().addTo(forecastMap);
 let borderLayers={dep:[],prov:[],dist:[]};
@@ -98,6 +102,73 @@ function depthOk(dep){
  const v=$('depthSelect').value;
  return v==='all'||(v==='shallow'&&dep<70)||(v==='mid'&&dep>=70&&dep<=300)||(v==='deep'&&dep>300);
 }
+
+function localPE(ms){return new Date(ms).toLocaleString('es-PE',{timeZone:'America/Lima'})}
+function alertLevel(m){return m>=6?'ALERTA IMPORTANTE':m>=4.5?'ALERTA SÍSMICA':'SISMO REGISTRADO'}
+function eventStatus(f){return (f.properties.status||'automatic').toLowerCase()==='reviewed'?'REVISADO':'PRELIMINAR'}
+function quakeFingerprint(f){return f.id||`${Math.round(f.properties.time/1000)}-${f.geometry.coordinates[0].toFixed(2)}-${f.geometry.coordinates[1].toFixed(2)}`}
+function persistSeen(){
+  try{localStorage.setItem('geosismos_seen_ids',JSON.stringify([...seenEventIds].slice(-300)))}catch(e){}
+}
+function notifyQuake(f){
+  const m=f.properties.mag??0, place=f.properties.place||'Perú', dep=f.geometry.coordinates[2]??0;
+  $('tickerText').textContent=`${alertLevel(m)} · M ${m.toFixed(1)} ${f.properties.magType||''} · ${place} · Prof. ${dep.toFixed(0)} km · ${localPE(f.properties.time)}`;
+  if('Notification' in window && Notification.permission==='granted' && document.hidden){
+    try{new Notification(`GeoSismosLatam · M ${m.toFixed(1)}`,{body:`${place} · ${dep.toFixed(0)} km · ${eventStatus(f)}`,icon:'logo.svg'})}catch(e){}
+  }
+}
+async function fastAlertCheck(){
+  if(fastCheckRunning)return;
+  fastCheckRunning=true;
+  try{
+    const r=await fetch(`${FAST_FEED}?t=${Date.now()}`,{cache:'no-store'});
+    const j=await r.json();
+    const pe=(j.features||[]).filter(inPeru).sort((a,b)=>b.properties.time-a.properties.time);
+    for(const f of pe){
+      const id=quakeFingerprint(f);
+      if(!seenEventIds.has(id)){
+        seenEventIds.add(id); persistSeen(); notifyQuake(f);
+        // Actualiza el visor completo sin bloquear la primera alerta.
+        loadQuakes();
+        break;
+      }
+    }
+  }catch(e){console.warn('fastAlertCheck',e)}
+  finally{fastCheckRunning=false}
+}
+function requestBrowserAlerts(){
+  if(!('Notification' in window)||Notification.permission!=='default')return;
+  // El permiso se solicita solo tras interacción del usuario para respetar políticas del navegador.
+  const once=()=>{Notification.requestPermission().catch(()=>{});document.removeEventListener('click',once)};
+  document.addEventListener('click',once,{once:true});
+}
+function sourceLink(url,label){
+  return url?`<a class="source-link" href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`:'';
+}
+function webSearchLink(f){
+  const place=(f.properties.place||'Perú').replace(/\d+\s*km.*?of\s*/i,'');
+  const q=encodeURIComponent(`sismo terremoto ${place} Perú`);
+  return `https://www.google.com/search?tbm=nws&q=${q}`;
+}
+function imageSearchLink(f){
+  const place=(f.properties.place||'Perú').replace(/\d+\s*km.*?of\s*/i,'');
+  const q=encodeURIComponent(`sismo ${place} Perú`);
+  return `https://www.google.com/search?tbm=isch&q=${q}`;
+}
+function renderCoverage(f){
+  const box=$('coverageBody'), status=$('coverageStatus');
+  if(!box||!status)return;
+  const m=f.properties.mag??0, usgs=f.properties.url||'https://earthquake.usgs.gov/earthquakes/map/';
+  status.textContent=`M ${m.toFixed(1)} · seguimiento`;
+  box.innerHTML=`<div class="coverage-grid">
+    <div class="coverage-item official"><b>IGP / CENSIS</b><span>Fuente oficial de información sísmica del Perú.</span>${sourceLink('https://ultimosismo.igp.gob.pe/ultimo-sismo','Abrir último reporte IGP')}</div>
+    <div class="coverage-item"><b>USGS</b><span>Magnitud y solución instrumental internacional del evento.</span>${sourceLink(usgs,'Abrir evento USGS')}</div>
+    <div class="coverage-item"><b>Noticias relacionadas</b><span>Búsqueda web externa. Verificar fuente y fecha antes de compartir.</span>${sourceLink(webSearchLink(f),'Buscar cobertura reciente')}</div>
+    <div class="coverage-item"><b>Fotografías públicas</b><span>Resultados externos; una imagen no implica verificación del hecho.</span>${sourceLink(imageSearchLink(f),'Buscar fotografías')}</div>
+  </div>
+  <div class="report-note"><b>Verificación:</b> GeoSismosLatam separa datos sísmicos de reportes web. Daños, fotografías y testimonios deben considerarse no confirmados hasta existir comunicado de una autoridad competente.</div>`;
+}
+
 async function loadQuakes(){
  $('liveStatus').textContent='Actualizando…';
  try{
@@ -107,7 +178,7 @@ async function loadQuakes(){
   $('lastUpdate').textContent=new Date(allData.metadata.generated).toLocaleString('es-PE');
   $('liveStatus').textContent='Actualización automática';
   const last=[...currentFeatures].sort((a,b)=>b.properties.time-a.properties.time)[0];
-  if(last)$('tickerText').textContent=`Último evento: M ${(last.properties.mag??0).toFixed(1)} · ${last.properties.place||'Perú'} · ${new Date(last.properties.time).toLocaleString('es-PE')}`;
+  if(last)$('tickerText').textContent=`Último evento: M ${(last.properties.mag??0).toFixed(1)} · ${last.properties.place||'Perú'} · ${localPE(last.properties.time)}`;
  }catch(e){$('liveStatus').textContent='Sin conexión'; console.error(e)}
 }
 function magColor(m){return m>=6?'#e41618':m>=5?'#ff5114':m>=4?'#ff9f00':m>=3?'#f6db17':'#4bbf65'}
@@ -143,13 +214,18 @@ function renderForecast(){
 function showQuakeReport(f){
  $('tabQuake').classList.add('active');$('tabForecast').classList.remove('active');
  const [lon,lat,dep]=f.geometry.coordinates,m=f.properties.mag??0;
- $('reportBody').innerHTML=`<div class="report-card"><div class="headline">SISMO OBSERVADO</div>
+ selectedQuake=f;
+ $('reportBody').innerHTML=`<div class="report-card"><div class="headline">${alertLevel(m)}</div>
  <div class="metric"><span>Ubicación</span><b>${f.properties.place||'Perú'}</b></div>
- <div class="metric"><span>Magnitud</span><b>M ${m.toFixed(1)}</b></div>
+ <div class="metric"><span>Magnitud preferente</span><b>M ${m.toFixed(1)} ${f.properties.magType||''} · USGS</b></div>
+ <div class="metric"><span>Estado USGS</span><b>${eventStatus(f)}</b></div>
  <div class="metric"><span>Profundidad</span><b>${dep.toFixed(0)} km</b></div>
  <div class="metric"><span>Coordenadas</span><b>${lat.toFixed(3)}, ${lon.toFixed(3)}</b></div>
- <div class="metric"><span>Fecha / hora</span><b>${new Date(f.properties.time).toLocaleString('es-PE')}</b></div>
- <div class="report-note">Dato observado de fuente sísmica pública. Para comunicados oficiales en Perú, verificar IGP/INDECI.</div></div>`;
+ <div class="metric"><span>Fecha / hora Perú</span><b>${localPE(f.properties.time)}</b></div>
+ <div class="metric"><span>Referencia oficial Perú</span><b>IGP/CENSIS</b></div>
+ <div class="source-actions">${sourceLink(f.properties.url,'Ver evento USGS')} ${sourceLink('https://ultimosismo.igp.gob.pe/ultimo-sismo','Ver IGP/CENSIS')}</div>
+ <div class="report-note">IGP/CENSIS es la fuente oficial del Estado peruano. GeoSismosLatam usa USGS para mostrar la magnitud reciente cuando el evento está disponible en su catálogo.</div></div>`;
+ renderCoverage(f);
 }
 function showForecastReport(c,prob,rel){
  $('tabForecast').classList.add('active');$('tabQuake').classList.remove('active');
@@ -200,6 +276,11 @@ $('quakeToggle').onchange=renderQuakes;
 $('tabQuake').onclick=()=>{$('tabQuake').classList.add('active');$('tabForecast').classList.remove('active')};
 $('tabForecast').onclick=()=>{$('tabForecast').classList.add('active');$('tabQuake').classList.remove('active')};
 
-populateDepartments();loadBoundaries();drawSeaLimit();loadQuakes();setInterval(loadQuakes,5*60*1000);
+populateDepartments();loadBoundaries();drawSeaLimit();loadQuakes();
+requestBrowserAlerts();
+fastAlertCheck();
+setInterval(fastAlertCheck,ALERT_POLL_MS);
+// Refresco completo menos frecuente; la detección de eventos nuevos corre cada 60 s.
+setInterval(loadQuakes,5*60*1000);
 
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
