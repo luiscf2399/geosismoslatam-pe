@@ -1,0 +1,20 @@
+GEOSISMOSLATAM V6 — ACCIONES IMPORTANTES
+
+1. El repositorio es público y actualmente contiene un archivo .env.
+   Si ese archivo contiene claves, tokens o contraseñas:
+   - elimínalo del repositorio;
+   - revoca/rota inmediatamente esas credenciales;
+   - guárdalas como Secrets en Cloudflare, nunca en GitHub.
+
+2. V6 incluye .assetsignore para evitar que Cloudflare publique como archivos web:
+   .env, archivos Python, worker.js, wrangler.jsonc, README y otros archivos internos.
+
+3. El Worker V6 actúa como proxy permitido SOLO para fuentes oficiales predefinidas.
+   No es un proxy abierto.
+
+4. Los endpoints /api/* quedan fuera del caché del service worker del navegador.
+   Los sismos se cachean en Cloudflare por ~10 s para reducir carga sobre IGP/USGS.
+
+5. La alarma web es de NUEVO REPORTE. No garantiza una alerta previa al movimiento.
+
+6. V7 añade Cron Triggers. Los scrapers solo apuntan a fuentes explícitamente permitidas; no existe proxy web abierto.

@@ -1,0 +1,13 @@
+.env
+.env.*
+.git/**
+.github/**
+.assetsignore
+wrangler.jsonc
+worker.js
+*.py
+requirements.txt
+README*
+SECURITY_ACTIONS.txt
+
+migration_v7.sql

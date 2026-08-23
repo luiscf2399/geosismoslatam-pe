@@ -1,23 +1,29 @@
 const $=id=>document.getElementById(id);
 const PERU={minLat:-22.8,maxLat:1.5,minLon:-85.5,maxLon:-68};
-const IGP='https://ide.igp.gob.pe/arcgis/rest/services/monitoreocensis/SismosReportados/MapServer/0/query';
-const IGP_LAST='https://ide.igp.gob.pe/arcgis/rest/services/monitoreocensis/UltimoSismo/MapServer/0/query';
-const USGS_DAY='https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson';
-const USGS_WEEK='https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson';
-const USGS_MONTH='https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson';
+const API_QUAKES='/api/quakes';
 const IMG='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 const STREET='https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
 const LABEL='https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png';
 const DEP='https://raw.githubusercontent.com/orbisgeo/geojson-peru-data/master/peru_departamental_simple.geojson';
 const PROV='https://raw.githubusercontent.com/orbisgeo/geojson-peru-data/master/peru_provincial_simple.geojson';
 const DIST='https://raw.githubusercontent.com/orbisgeo/geojson-peru-data/master/peru_distrital_simple.geojson';
-const IGP_SOIL='https://ide.igp.gob.pe/arcgis/rest/services/cienciastierrasolida/EstudiosZonificacion/MapServer';
-const INGEMMET_WMS='https://geocatmin.ingemmet.gob.pe/arcgis/services/SERV_GEOLOGIA/MapServer/WMSServer';
+const IGP_SOIL='/api/arcgis/igp_zoning';
+const SEN_JJA='/api/wms/sen_jja';
+const SEN_AUG='/api/wms/sen_aug';
+const SEN_NUM='/api/wms/sen_numeric';
+const SEN_24H='/api/wms/sen_24h';
+const SEN_Q='/api/wms/sen_quebradas';
+const SEN_JJA_LAYER='g_03_02:03_02_001_03_000_512_0000_00_00';
+const SEN_AUG_LAYER='g_05_02:05_02_008_03_001_512_0000_00_00';
+const ING_MASS='/api/arcgis/risk_mass';
+const ING_FLOOD='/api/arcgis/risk_flood';
+const ING_HAZ='/api/arcgis/risk_hazards';
+const IGP_GEO='/api/arcgis/igp_zoning';
 const peFmt=new Intl.DateTimeFormat('es-PE',{timeZone:'America/Lima',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
 const clockFmt=new Intl.DateTimeFormat('es-PE',{timeZone:'America/Lima',hour:'2-digit',minute:'2-digit',second:'2-digit'});
-let maps={},quakeLayer,histLayer,forecastHeat,forecastZones,riskWms,soilLayer;
-let igp=[],usgs=[],catalog=[],mapWindow=24,initialized=false,seen=new Set(JSON.parse(localStorage.getItem('gsl5_seen')||'[]'));
-let sound=false,audioCtx=null,forecastHours=24,forecastTimer=0,adminLayers={},boundsData={};
+let maps={},quakeLayer,histLayer,forecastHeat,forecastZones,riskWms,soilLayer,rainLayer,marineLayer,riskDistrictLayer,agriDistrictLayer;
+let igp=[],usgs=[],catalog=[],mapWindow=24,initialized=false,seen=new Set(JSON.parse(localStorage.getItem('gsl6_seen')||'[]'));
+let sound=false,audioCtx=null,forecastHours=24,forecastTimer=0,adminLayers={},boundsData={},historyCatalog=[],forecastCatalog=[],projectionMode='prob',selectedEventId=null,riskMode='hazards',emergencyData=null,enfenData=null,agriData=null,selectedAgriFeature=null;
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const pe=t=>{try{return peFmt.format(new Date(t))}catch{return'—'}};
 const color=m=>m>=6?'#df3e3e':m>=4.5?'#f2a51a':'#35a769';
@@ -67,7 +73,12 @@ async function initMapData(){
   try{boundsData.dep=await get(DEP);adminLayers.dep=L.geoJSON(boundsData.dep,{style:{color:'#f2da75',weight:1.1,fillOpacity:0},interactive:false}).addTo(maps.map)}catch{}
   try{boundsData.prov=await get(PROV);adminLayers.prov=L.geoJSON(boundsData.prov,{style:{color:'#d5e2e9',weight:.45,fillOpacity:0},interactive:false}).addTo(maps.map)}catch{}
 }
-async function ensureDistrict(){if(adminLayers.dist)return;try{boundsData.dist=await get(DIST);adminLayers.dist=L.geoJSON(boundsData.dist,{style:{color:'#c8d7df',weight:.3,fillOpacity:0},interactive:false}).addTo(maps.map)}catch{}}
+async function ensureDistrict(){
+  if(!boundsData.dist){try{boundsData.dist=await get(DIST,25000)}catch{return null}}
+  if(!adminLayers.dist)adminLayers.dist=L.geoJSON(boundsData.dist,{style:{color:'#c8d7df',weight:.3,fillOpacity:0},interactive:false});
+  if($('dists')?.checked&&!maps.map.hasLayer(adminLayers.dist))adminLayers.dist.addTo(maps.map);
+  return boundsData.dist;
+}
 function initMaps(){
   maps.map=mkMap('map');quakeLayer=L.layerGroup().addTo(maps.map);
   maps.historyMap=mkMap('historyMap');histLayer=L.layerGroup().addTo(maps.historyMap);
@@ -75,6 +86,8 @@ function initMaps(){
   maps.rainMap=mkMap('rainMap');
   maps.riskMap=mkMap('riskMap');
   maps.soilMap=mkMap('soilMap');
+  maps.marineMap=mkMap('marineMap');
+  maps.agriMap=mkMap('agriMap');
   Object.values(maps).forEach(m=>m.fitBounds([[-20.5,-82.5],[-2,-68]],{padding:[8,8]}));
   initMapData();
   try{
@@ -82,22 +95,64 @@ function initMaps(){
   }catch(e){}
 }
 function currentEvents(){const cut=Date.now()-mapWindow*3600000,min=+$('minMag').value;return catalog.filter(f=>f.properties.time>=cut&&(+f.properties.mag||0)>=min)}
+
+function rangeForMag(m){
+  m=+m||0;
+  if(m>=6) return {key:'high',label:'M ≥ 6.0 · rango mayor'};
+  if(m>=4.5) return {key:'medium',label:'M4.5–5.9 · rango moderado'};
+  return {key:'low',label:'M < 4.5 · rango menor'};
+}
+function renderSelectedEvent(f){
+  if(!f) return;
+  selectedEventId=f.id;
+  const p=f.properties||{}, c=f.geometry?.coordinates||[0,0,0];
+  const [lon,lat,depth=0]=c;
+  $('detailTitle').textContent=`M ${(+p.mag||0).toFixed(1)} · ${p.place||'Perú'}`;
+  $('detailSourceBadge').textContent=p.source==='IGP+USGS'?'IGP/CENSIS + USGS':p.source==='IGP'?'IGP/CENSIS':'USGS';
+  $('detailUpdated').textContent='Evento: '+pe(p.time);
+  $('detailPlace').textContent=p.place||'—';
+  $('detailTime').textContent=pe(p.time);
+  $('detailCoords').textContent=`${(+lat).toFixed(3)}°, ${(+lon).toFixed(3)}°`;
+  $('detailDepth').textContent=`${(+depth).toFixed(0)} km`;
+  $('detailIntensity').textContent=p.intensity||'No reportada / no disponible';
+  $('detailMagnitude').textContent=`M ${(+p.mag||0).toFixed(1)}${p.magType?' '+p.magType:''}`;
+  $('detailOfficialLink').href=p.source==='USGS'?(p.url||'https://earthquake.usgs.gov/'):(p.url||'https://ultimosismo.igp.gob.pe/');
+  const usgs=$('detailUSGSLink');
+  const usgsUrl=p.usgsUrl || (p.source==='USGS'?p.url:'');
+  if(usgsUrl){usgs.href=usgsUrl;usgs.classList.remove('hidden')}else usgs.classList.add('hidden');
+  const rr=rangeForMag(p.mag);
+  document.querySelectorAll('.range-card').forEach(x=>x.classList.toggle('current',x.dataset.range===rr.key));
+  $('detailRangeText').textContent=rr.label;
+  $('detailCenterMap').onclick=()=>{
+    maps.map.flyTo([lat,lon],8,{duration:.8});
+    L.popup({maxWidth:350}).setLatLng([lat,lon]).setContent(popup(f)).openOn(maps.map);
+    window.scrollTo({top:0,behavior:'smooth'});
+  };
+}
+
 function renderMonitor(){
   const d=currentEvents();quakeLayer.clearLayers();
-  d.forEach((f,i)=>{const c=f.geometry.coordinates;L.marker([c[1],c[0]],{icon:icon(f,i===0)}).bindPopup(popup(f),{maxWidth:350}).addTo(quakeLayer)});
+  d.forEach((f,i)=>{const c=f.geometry.coordinates;const mk=L.marker([c[1],c[0]],{icon:icon(f,i===0)}).bindPopup(popup(f),{maxWidth:350}).addTo(quakeLayer);mk.on('click',()=>renderSelectedEvent(f))});
   $('count').textContent=d.length;
   $('recentList').innerHTML=d.slice(0,14).map((f,i)=>{const p=f.properties;return `<div class="quake-item" data-q="${i}"><div class="m" style="background:${color(p.mag)}">M ${(+p.mag||0).toFixed(1)}</div><div class="where"><b>${esc(p.place)}</b><small>${p.source==='IGP'?'IGP/CENSIS':p.source==='IGP+USGS'?'IGP + USGS':'USGS'}</small></div><time>${new Intl.DateTimeFormat('es-PE',{timeZone:'America/Lima',hour:'2-digit',minute:'2-digit'}).format(new Date(p.time))}</time></div>`}).join('')||'<div class="loading">No hay eventos visibles con este filtro.</div>';
-  document.querySelectorAll('[data-q]').forEach(x=>x.onclick=()=>{const f=d[+x.dataset.q],c=f.geometry.coordinates;maps.map.flyTo([c[1],c[0]],8);L.popup().setLatLng([c[1],c[0]]).setContent(popup(f)).openOn(maps.map)});
+  document.querySelectorAll('[data-q]').forEach(x=>x.onclick=()=>{const f=d[+x.dataset.q],c=f.geometry.coordinates;renderSelectedEvent(f);maps.map.flyTo([c[1],c[0]],8);L.popup().setLatLng([c[1],c[0]]).setContent(popup(f)).openOn(maps.map)});
   renderLatest();
 }
-function renderLatest(){const f=[...igp].sort((a,b)=>b.properties.time-a.properties.time)[0]||catalog[0];if(!f)return;const p=f.properties,[x,y,d=0]=f.geometry.coordinates;$('latestMag').textContent=`M ${(+p.mag||0).toFixed(1)}`;$('latestMag').style.color=color(p.mag);$('latestPlace').textContent=p.place||'Perú';$('latestTime').textContent=pe(p.time);$('latestDepth').textContent=`${(+d).toFixed(0)} km`;$('latestIntensity').textContent=p.intensity||'—';$('latestCoords').textContent=`${y.toFixed(2)}, ${x.toFixed(2)}`;$('latestCode').textContent=p.code||'—';$('latestLink').href=p.url||'https://ultimosismo.igp.gob.pe/'}
-function renderHistory(){
-  const days=$('histDays').value,src=$('histSource').value,min=+$('histMag').value,q=$('histSearch').value.toLowerCase();let d=[...catalog];
-  if(days!=='all')d=d.filter(f=>f.properties.time>=Date.now()-(+days)*86400000);
+function renderLatest(){const f=[...igp].sort((a,b)=>b.properties.time-a.properties.time)[0]||catalog[0];if(!f)return;const p=f.properties,[x,y,d=0]=f.geometry.coordinates;$('latestMag').textContent=`M ${(+p.mag||0).toFixed(1)}`;$('latestMag').style.color=color(p.mag);$('latestPlace').textContent=p.place||'Perú';$('latestTime').textContent=pe(p.time);$('latestDepth').textContent=`${(+d).toFixed(0)} km`;$('latestIntensity').textContent=p.intensity||'—';$('latestCoords').textContent=`${y.toFixed(2)}, ${x.toFixed(2)}`;$('latestCode').textContent=p.code||'—';$('latestLink').href=p.url||'https://ultimosismo.igp.gob.pe/';const selected=catalog.find(x=>x.id===selectedEventId);if(selected)renderSelectedEvent(selected);else renderSelectedEvent(f)}
+async function renderHistory(){
+  const days=$('histDays').value,src=$('histSource').value,min=+$('histMag').value,q=$('histSearch').value.toLowerCase();
+  $('histRows').innerHTML='<tr><td colspan="6">Consultando catálogo…</td></tr>';
+  try{
+    const hours=days==='all'?8760:Math.max(24,+days*24);
+    const data=await get(`${API_QUAKES}?hours=${hours}`,20000);
+    historyCatalog=data.events||[];
+  }catch(e){ historyCatalog=[...catalog]; }
+  let d=[...historyCatalog];
   if(src!=='all')d=d.filter(f=>f.properties.source.includes(src));
   d=d.filter(f=>(+f.properties.mag||0)>=min&&(!q||(f.properties.place||'').toLowerCase().includes(q)||(f.properties.code||'').toLowerCase().includes(q)));
-  histLayer.clearLayers();d.slice(0,1000).forEach(f=>{const c=f.geometry.coordinates;L.marker([c[1],c[0]],{icon:icon(f)}).bindPopup(popup(f)).addTo(histLayer)});
-  $('histRows').innerHTML=d.slice(0,1000).map(f=>{const p=f.properties,z=f.geometry.coordinates[2]||0;return `<tr><td>${pe(p.time)}</td><td>${esc(p.source)}</td><td><b style="color:${color(p.mag)}">M ${(+p.mag||0).toFixed(1)}</b></td><td>${(+z).toFixed(0)} km</td><td>${esc(p.place)}</td><td><a target="_blank" href="${esc(p.url||p.usgsUrl||'#')}">Abrir ↗</a></td></tr>`}).join('')||'<tr><td colspan="6">Sin eventos.</td></tr>';
+  histLayer.clearLayers();
+  d.slice(0,1200).forEach(f=>{const c=f.geometry.coordinates;L.marker([c[1],c[0]],{icon:icon(f)}).bindPopup(popup(f)).addTo(histLayer)});
+  $('histRows').innerHTML=d.slice(0,1200).map(f=>{const p=f.properties,z=f.geometry.coordinates[2]||0;return `<tr><td>${pe(p.time)}</td><td>${esc(p.source)}</td><td><b style="color:${color(p.mag)}">M ${(+p.mag||0).toFixed(1)}</b></td><td>${(+z).toFixed(0)} km</td><td>${esc(p.place)}</td><td><a target="_blank" rel="noopener" href="${esc(p.url||p.usgsUrl||'#')}">Abrir ↗</a></td></tr>`}).join('')||'<tr><td colspan="6">Sin eventos para este filtro.</td></tr>';
 }
 function playAlert(){
   if(!sound)return;
@@ -108,43 +163,420 @@ function playAlert(){
 function alertNew(){
   const fresh=catalog.filter(f=>Date.now()-f.properties.time<20*60*1000);
   if(!initialized){fresh.forEach(f=>seen.add(f.id));initialized=true;return}
-  const n=fresh.find(f=>!seen.has(f.id));fresh.forEach(f=>seen.add(f.id));localStorage.setItem('gsl5_seen',JSON.stringify([...seen].slice(-800)));
+  const n=fresh.find(f=>!seen.has(f.id));fresh.forEach(f=>seen.add(f.id));localStorage.setItem('gsl6_seen',JSON.stringify([...seen].slice(-800)));
   if(n){$('alertState').textContent=`NUEVO SISMO M ${(+n.properties.mag||0).toFixed(1)}`;$('alertState').style.background='#9c272a';playAlert();const c=n.geometry.coordinates;maps.map.flyTo([c[1],c[0]],8);setTimeout(()=>{$('alertState').textContent='SIN ALERTAS';$('alertState').style.background=''},12000)}
 }
 async function poll(){
   $('lastPoll').textContent='Consultando…';
-  const results=await Promise.allSettled([fetchIGP(),get(USGS_DAY)]);
-  if(results[0].status==='fulfilled'){igp=results[0].value;$('igpStatus').textContent='IGP CONECTADO';$('igpHealth').textContent='Operativo'}else{$('igpStatus').textContent='IGP SIN RESPUESTA';$('igpHealth').textContent='Sin respuesta'}
-  if(results[1].status==='fulfilled'){usgs=normUSGS(results[1].value);$('usgsStatus').textContent='USGS CONECTADO';$('usgsHealth').textContent='Operativo'}else{$('usgsStatus').textContent='USGS SIN RESPUESTA';$('usgsHealth').textContent='Sin respuesta'}
-  merge();renderMonitor();alertNew();$('lastPoll').textContent=clockFmt.format(new Date());$('updated').textContent='Actualizado: '+pe(Date.now());
-  if(Date.now()-forecastTimer>30*60*1000){renderForecast();forecastTimer=Date.now()}
+  try{
+    const data=await get(`${API_QUAKES}?hours=24`);
+    catalog=data.events||[];
+    igp=catalog.filter(f=>f.properties.source.includes('IGP'));
+    usgs=catalog.filter(f=>f.properties.source==='USGS');
+    const si=data.sources?.igp, su=data.sources?.usgs;
+    $('igpStatus').textContent=si?.ok?'IGP CONECTADO':'IGP SIN RESPUESTA';
+    $('igpHealth').textContent=si?.ok?`Operativo · ${si.count||0} eventos`:'Sin respuesta';
+    $('usgsStatus').textContent=su?.ok?'USGS CONECTADO':'USGS SIN RESPUESTA';
+    $('usgsHealth').textContent=su?.ok?`Operativo · ${su.count||0} eventos`:'Sin respuesta';
+    renderMonitor(); alertNew();
+    $('lastPoll').textContent=clockFmt.format(new Date());
+    $('updated').textContent='Actualizado: '+pe(data.generatedAt||Date.now());
+    if(Date.now()-forecastTimer>30*60*1000){ensureForecastData();forecastTimer=Date.now()}
+  }catch(e){
+    $('igpStatus').textContent='DATOS NO DISPONIBLES';
+    $('usgsStatus').textContent='REINTENTANDO';
+    $('igpHealth').textContent='Conexión temporalmente interrumpida';
+    $('usgsHealth').textContent='Conexión temporalmente interrumpida';
+    $('lastPoll').textContent='Error';
+  }
 }
-function localScore(events,lat,lon,h){
-  let s=0,near=[];
-  for(const f of events){const c=f.geometry.coordinates,m=Math.max(1,+f.properties.mag||0),age=(Date.now()-f.properties.time)/3600000;if(age<0||age>h*3)continue;const d=hav(lat,lon,c[1],c[0]);const temporal=Math.pow(age+2,-1.05),spatial=Math.exp(-d/90),product=Math.pow(10,.32*Math.max(0,m-3));const w=temporal*spatial*product;s+=w;if(d<120)near.push(m)}
-  return {s,near}
+async function ensureForecastData(){
+  if(forecastCatalog.length && Date.now()-(forecastCatalog._loadedAt||0)<20*60*1000){renderForecast();return}
+  try{
+    const data=await get(`${API_QUAKES}?hours=8760`,25000);
+    forecastCatalog=data.events||[];
+    forecastCatalog._loadedAt=Date.now();
+  }catch(e){forecastCatalog=[...catalog]}
+  renderForecast();
+}
+function forecastComponents(events,lat,lon,h){
+  let recent=0,bg=0,now=Date.now(),cur7=0,prev7=0,near=[];
+  for(const f of events){
+    const c=f.geometry.coordinates,m=Math.max(1,+f.properties.mag||0),age=(now-f.properties.time)/3600000;
+    if(age<0)continue;
+    const d=hav(lat,lon,c[1],c[0]);
+    const magW=Math.pow(10,.28*Math.max(0,m-3));
+    if(age<=8760) bg+=magW*Math.exp(-.5*(d/125)**2);
+    if(age<=Math.max(720,h*2)){
+      const bw=Math.max(35,Math.min(120,42+18*Math.max(0,m-4)));
+      const temporal=Math.pow(age+2,-1.08);
+      recent+=magW*temporal*Math.exp(-.5*(d/bw)**2);
+      if(d<130)near.push(m);
+    }
+    if(age<=168) cur7+=magW*Math.exp(-.5*(d/90)**2);
+    else if(age<=336) prev7+=magW*Math.exp(-.5*(d/90)**2);
+  }
+  const trend=(cur7+0.02)/(prev7+0.02);
+  return {recent,bg,trend,near};
 }
 function renderForecast(){
-  if(!maps.forecastMap||!catalog.length)return;const events=catalog.filter(f=>f.properties.time>=Date.now()-Math.max(forecastHours,720)*3600000);
-  const pts=[],cells=[];for(let lat=-19.5;lat<=-3;lat+=.45){for(let lon=-81.8;lon<=-69.3;lon+=.45){const r=localScore(events,lat,lon,forecastHours);if(r.s>0.0002)cells.push({lat,lon,score:r.s,near:r.near})}}
-  const max=Math.max(...cells.map(x=>x.score),.0001);cells.forEach(c=>pts.push([c.lat,c.lon,Math.min(1,c.score/max)]));
-  if(forecastHeat)maps.forecastMap.removeLayer(forecastHeat);forecastHeat=L.heatLayer(pts,{radius:28,blur:24,maxZoom:8,minOpacity:.12,gradient:{0.15:'#1e6fa5',0.35:'#2dac69',0.55:'#e4d233',0.75:'#f08a19',1:'#d52d2d'}}).addTo(maps.forecastMap);
-  forecastZones.clearLayers();const top=[...cells].sort((a,b)=>b.score-a.score).filter((c,i,a)=>a.slice(0,i).every(x=>hav(c.lat,c.lon,x.lat,x.lon)>150)).slice(0,4);
-  $('zoneCards').innerHTML=top.map((c,i)=>{const ratio=Math.round(c.score/max*100),ms=c.near.sort((a,b)=>a-b),lo=ms.length?ms[Math.floor(ms.length*.25)]:0,hi=ms.length?ms[Math.min(ms.length-1,Math.floor(ms.length*.8))]:0;return `<div class="zone" data-z="${i}"><div class="zonehead"><h4>Zona ${i+1}</h4><span class="level">${ratio>=75?'MUY ALTA':ratio>=50?'ALTA':ratio>=25?'MODERADA':'BAJA'}</span></div><p>Índice relativo: <b>${ratio}/100</b></p><p>Magnitud observada de referencia: <b>${lo?`M ${lo.toFixed(1)}–${hi.toFixed(1)}`:'—'}</b></p><p>Centro analítico: ${c.lat.toFixed(2)}, ${c.lon.toFixed(2)}</p></div>`}).join('')||'<div class="loading">Actividad insuficiente para destacar zonas.</div>';
-  top.forEach((c,i)=>L.circle([c.lat,c.lon],{radius:42000,color:'#fff',weight:1,fillColor:'#ff8a20',fillOpacity:.08,dashArray:'4,5'}).bindTooltip(`Zona ${i+1}`).addTo(forecastZones));
+  if(!maps.forecastMap)return;
+  const events=(forecastCatalog.length?forecastCatalog:catalog);
+  if(!events.length){$('zoneCards').innerHTML='<div class="loading">Sin datos suficientes.</div>';return}
+  const cells=[];
+  for(let lat=-19.5;lat<=-3;lat+=.48)for(let lon=-81.8;lon<=-69.3;lon+=.48){
+    const r=forecastComponents(events,lat,lon,forecastHours);
+    cells.push({lat,lon,...r});
+  }
+  const maxR=Math.max(...cells.map(x=>x.recent),1e-9),maxB=Math.max(...cells.map(x=>x.bg),1e-9);
+  cells.forEach(c=>{
+    c.rate=.72*(c.recent/maxR)+.28*(c.bg/maxB);
+    c.score=projectionMode==='trend'?Math.max(0,Math.min(1,(Math.log(c.trend)+1)/2.5)):c.rate;
+  });
+  const pts=cells.filter(c=>c.score>.04).map(c=>[c.lat,c.lon,c.score]);
+  if(forecastHeat)maps.forecastMap.removeLayer(forecastHeat);
+  forecastHeat=L.heatLayer(pts,{radius:24,blur:30,maxZoom:8,minOpacity:.08,gradient:{0.12:'#2877a8',0.32:'#36a96b',0.52:'#d5c83a',0.72:'#ec8a28',1:'#cc3b37'}}).addTo(maps.forecastMap);
+  forecastZones.clearLayers();
+  const top=[...cells].sort((a,b)=>b.score-a.score).filter((c,i,a)=>a.slice(0,i).every(x=>hav(c.lat,c.lon,x.lat,x.lon)>165)).slice(0,4);
+  $('zoneCards').innerHTML=top.map((c,i)=>{
+    const ratio=Math.round(c.score*100),ms=[...c.near].sort((a,b)=>a-b),lo=ms.length?ms[Math.floor(ms.length*.25)]:0,hi=ms.length?ms[Math.min(ms.length-1,Math.floor(ms.length*.8))]:0;
+    const trend=c.trend>1.35?'↑ aumentando':c.trend<.75?'↓ disminuyendo':'→ estable';
+    return `<div class="zone" data-z="${i}"><div class="zonehead"><h4>Zona ${i+1}</h4><span class="level">${ratio>=75?'MUY ALTO':ratio>=50?'ALTO':ratio>=25?'MODERADO':'BAJO'}</span></div><p>Índice relativo: <b>${ratio}/100</b></p><p>Tendencia semanal: <b>${trend}</b></p><p>Magnitud observada de referencia: <b>${lo?`M ${lo.toFixed(1)}–${hi.toFixed(1)}`:'—'}</b></p><p>Incertidumbre espacial orientativa: <b>±45–80 km</b></p></div>`;
+  }).join('');
+  top.forEach((c,i)=>L.circle([c.lat,c.lon],{radius:38000,color:'#dceaf2',weight:.7,fillColor:'#ff8a20',fillOpacity:.04,dashArray:'4,6'}).bindTooltip(`Zona ${i+1}`).addTo(forecastZones));
   document.querySelectorAll('[data-z]').forEach(x=>x.onclick=()=>{const c=top[+x.dataset.z];maps.forecastMap.flyTo([c.lat,c.lon],7)});
-  $('projEvents').textContent=events.length;$('projTime').textContent=clockFmt.format(new Date());
+  $('projEvents').textContent=events.length;
+  $('projTime').textContent=clockFmt.format(new Date());
 }
-function initRisk(){
-  try{riskWms=L.tileLayer.wms(INGEMMET_WMS,{layers:'0',format:'image/png',transparent:true,opacity:.58,attribution:'INGEMMET'}).addTo(maps.riskMap)}catch(e){}
+function setLayerStatus(id,msg,ok=true){
+  const el=$(id); if(!el)return; el.textContent=msg; el.classList.toggle('error',!ok); el.classList.toggle('ok',ok);
 }
+function directText(el,tag){
+  for(const n of el.children||[]) if(n.localName===tag||n.nodeName===tag) return (n.textContent||'').trim();
+  return '';
+}
+async function discoverWms(base,keywords=[]){
+  const u=base+'?service=WMS&version=1.3.0&request=GetCapabilities&_='+Date.now();
+  const r=await fetch(u,{cache:'no-store'});
+  if(!r.ok) throw Error('HTTP '+r.status);
+  const xml=new DOMParser().parseFromString(await r.text(),'text/xml');
+  const ls=[...xml.getElementsByTagName('Layer')].map(el=>({name:directText(el,'Name'),title:directText(el,'Title')})).filter(x=>x.name);
+  if(!ls.length)throw Error('Sin capas publicadas');
+  const words=keywords.map(x=>x.toLowerCase());
+  return ls.find(x=>words.some(w=>(x.title+' '+x.name).toLowerCase().includes(w)))||ls[0];
+}
+function clearRain(){
+  if(rainLayer){try{maps.rainMap.removeLayer(rainLayer)}catch{} rainLayer=null}
+}
+async function loadRain(mode='jja'){
+  clearRain();
+  const title=$('rainLayerTitle'), legend=$('rainLegendText');
+  try{
+    if(mode==='off'){title.textContent='Capas ocultas';legend.textContent='Seleccione una capa oficial para visualizarla.';setLayerStatus('rainStatus','Sin capa temática activa.',true);return}
+    if(mode==='jja'){
+      rainLayer=L.tileLayer.wms(SEN_JJA,{layers:SEN_JJA_LAYER,format:'image/png',transparent:true,opacity:.68,version:'1.1.1',attribution:'SENAMHI · IDESEP'}).addTo(maps.rainMap);
+      title.textContent='SENAMHI · Pronóstico climático de precipitación JJA';if($('rainInfoTitle')){$('rainInfoTitle').textContent='Pronóstico climático estacional';$('rainInfoText').textContent='Representa una perspectiva climática estacional de precipitación. No equivale a lluvia observada en tiempo real.';$('rainInfoFacts').innerHTML='<span>Fuente</span><b>SENAMHI / IDESEP</b><span>Uso</span><b>Planificación preventiva</b>'};
+      legend.textContent='Pronóstico climático estacional JJA. No equivale a lluvia observada en tiempo real.';
+      setLayerStatus('rainStatus','SENAMHI: capa JJA solicitada al geoservicio oficial.',true); return;
+    }
+    if(mode==='aug'){
+      rainLayer=L.tileLayer.wms(SEN_AUG,{layers:SEN_AUG_LAYER,format:'image/png',transparent:true,opacity:.65,version:'1.1.1',attribution:'SENAMHI · IDESEP'}).addTo(maps.rainMap);
+      title.textContent='SENAMHI · Caracterización climatológica de precipitación · agosto';
+      legend.textContent='Distribución climatológica de precipitación para agosto; sirve como referencia, no como monitoreo instantáneo.';
+      setLayerStatus('rainStatus','SENAMHI: climatología de agosto solicitada al geoservicio oficial.',true); return;
+    }
+    if(mode==='numeric'){
+      setLayerStatus('rainStatus','Consultando predicción numérica SENAMHI…',true);
+      const lyr=await discoverWms(SEN_NUM,['prec','precip','lluv']);
+      rainLayer=L.tileLayer.wms(SEN_NUM,{layers:lyr.name,format:'image/png',transparent:true,opacity:.72,version:'1.1.1',attribution:'SENAMHI · IDESEP'}).addTo(maps.rainMap);
+      title.textContent='SENAMHI · Predicción numérica · '+(lyr.title||lyr.name);if($('rainInfoTitle')){$('rainInfoTitle').textContent='Pronóstico numérico';$('rainInfoText').textContent='Modelo numérico oficial disponible mediante el geoservicio SENAMHI. Verifica la fecha y hora de validez del producto.';$('rainInfoFacts').innerHTML='<span>Fuente</span><b>SENAMHI</b><span>Tipo</span><b>Pronóstico modelado</b>'};
+      legend.textContent='Pronóstico numérico oficial de precipitación. Consulta la fecha de validez del producto original antes de interpretarlo.';
+      setLayerStatus('rainStatus','Capa de predicción numérica cargada.',true); return;
+    }
+    const base=mode==='24h'?SEN_24H:SEN_Q;
+    setLayerStatus('rainStatus','Consultando catálogo WMS de SENAMHI…',true);
+    const lyr=await discoverWms(base,mode==='24h'?['lluv','precip','24h','aviso']:['queb','activ']);
+    rainLayer=L.tileLayer.wms(base,{layers:lyr.name,format:'image/png',transparent:true,opacity:.72,version:'1.1.1',attribution:'SENAMHI · IDESEP'}).addTo(maps.rainMap);
+    title.textContent='SENAMHI · '+(lyr.title||lyr.name);
+    legend.textContent=mode==='24h'?'Aviso/capa de corto plazo ante lluvias intensas publicada por SENAMHI.':'Aviso oficial de activación de quebradas publicado por SENAMHI.';
+    setLayerStatus('rainStatus','Capa oficial cargada: '+(lyr.title||lyr.name),true);
+  }catch(e){
+    title.textContent='SENAMHI · capa dinámica no disponible';
+    legend.textContent='El geoservicio dinámico no respondió al navegador. Se muestra automáticamente el pronóstico estacional JJA como respaldo.';
+    setLayerStatus('rainStatus','La capa de corto plazo no respondió. Mostrando respaldo oficial JJA.',false);
+    rainLayer=L.tileLayer.wms(SEN_JJA,{layers:SEN_JJA_LAYER,format:'image/png',transparent:true,opacity:.68,version:'1.1.1',attribution:'SENAMHI · IDESEP'}).addTo(maps.rainMap);
+  }
+}
+function clearRisk(){
+  if(riskWms){try{maps.riskMap.removeLayer(riskWms)}catch{} riskWms=null}
+}
+function loadRisk(mode='mass'){
+  clearRisk();
+  if(mode==='off'){ $('riskLayerTitle').textContent='Capas de riesgo ocultas'; setLayerStatus('riskStatus','Sin capa temática activa.',true); return; }
+  try{
+    let url,label,layers;
+    if(mode==='mass'){url=ING_MASS;label='INGEMMET · Susceptibilidad por movimientos en masa';layers=[1];}
+    if(mode==='flood'){url=ING_FLOOD;label='INGEMMET · Susceptibilidad a inundación fluvial';layers=[0];}
+    if(mode==='hazards'){url=ING_HAZ;label='INGEMMET · Peligros geológicos inventariados';layers=[0,1,2];}
+    if(mode==='igp'){url=IGP_GEO;label='IGP · Geodinámica en ciudades y zonas estudiadas';layers=[3];}
+    riskWms=L.esri.dynamicMapLayer({url,opacity:.68,useCors:true,layers}).addTo(maps.riskMap);
+    $('riskLayerTitle').textContent=label;
+    setLayerStatus('riskStatus','Cargando servicio oficial: '+label,true);
+    riskWms.on('load',()=>setLayerStatus('riskStatus','Capa oficial visible · '+label,true));
+    riskWms.on('requesterror',()=>setLayerStatus('riskStatus','La entidad no respondió en este momento. Pruebe otra capa o el visor oficial.',false));
+  }catch(e){
+    setLayerStatus('riskStatus','No se pudo cargar esta capa oficial. Pruebe otra fuente.',false);
+  }
+}
+function initRisk(){loadRisk('mass')}
 function setSoilLayer(id){
-  try{if(soilLayer)maps.soilMap.removeLayer(soilLayer);soilLayer=L.esri.dynamicMapLayer({url:IGP_SOIL,layers:[+id],opacity:.72,useCors:true}).addTo(maps.soilMap)}catch(e){}
+  const names={9:'Zonificación sísmica-geotécnica',4:'Tipos de suelo',5:'Capacidad portante',2:'Geología',1:'Geomorfología',3:'Geodinámica',10:'Área estudiada'};
+  try{
+    if(soilLayer)maps.soilMap.removeLayer(soilLayer);
+    soilLayer=L.esri.dynamicMapLayer({url:IGP_SOIL,layers:[+id],opacity:.72,useCors:true}).addTo(maps.soilMap);
+    $('soilInfoTitle').textContent=names[id]||'Capa IGP';
+    $('soilInfoText').textContent='Haz clic sobre el mapa para consultar qué información pública del estudio IGP existe en ese punto.';
+    $('soilInfoFacts').innerHTML='<span>Capa activa</span><b>'+esc(names[id]||id)+'</b><span>Fuente</span><b>IGP · EstudiosZonificacion</b>';
+  }catch(e){}
+}
+async function identifySoil(latlng){
+  $('soilInfoTitle').textContent='Consultando punto…';
+  $('soilInfoText').textContent='Buscando información oficial disponible.';
+  try{
+    const b=maps.soilMap.getBounds();
+    const p=new URLSearchParams({
+      f:'json',geometry:`${latlng.lng},${latlng.lat}`,geometryType:'esriGeometryPoint',sr:'4326',
+      tolerance:'5',mapExtent:`${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()}`,
+      imageDisplay:'1200,800,96',returnGeometry:'false',layers:'all:0,1,2,3,4,5,9,10'
+    });
+    const data=await get(`/api/arcgis/igp_zoning/identify?${p}`,15000);
+    const rs=data.results||[];
+    if(!rs.length){
+      $('soilInfoTitle').textContent='Sin estudio identificado en este punto';
+      $('soilInfoText').textContent='No se encontró una capa IGP con información para la coordenada seleccionada. Esto no significa que el terreno sea seguro o que no exista otro estudio.';
+      $('soilInfoFacts').innerHTML=`<span>Coordenadas</span><b>${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}</b>`;
+      return;
+    }
+    const groups=rs.slice(0,8).map(r=>{
+      const a=r.attributes||{}, vals=Object.entries(a).filter(([k,v])=>v!==null&&v!==''&&!/objectid/i.test(k)).slice(0,4);
+      return `<div class="study-hit"><b>${esc(r.layerName||'Capa IGP')}</b>${vals.map(([k,v])=>`<small>${esc(k)}: ${esc(v)}</small>`).join('')}</div>`;
+    }).join('');
+    $('soilInfoTitle').textContent='Información IGP encontrada';
+    $('soilInfoText').textContent='Resultados del servicio público de Estudios de Zonificación para el punto seleccionado.';
+    $('soilInfoFacts').innerHTML=groups;
+  }catch(e){
+    $('soilInfoTitle').textContent='Servicio temporalmente no disponible';
+    $('soilInfoText').textContent='No fue posible consultar el punto en este momento. Usa Zonifica Perú como fuente oficial de respaldo.';
+  }
 }
 function showView(id){
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===id));document.querySelectorAll('.mainnav button').forEach(b=>b.classList.toggle('active',b.dataset.view===id));
-  setTimeout(()=>{if(maps[id+'Map'])maps[id+'Map'].invalidateSize();if(id==='monitor')maps.map.invalidateSize();if(id==='forecast'){maps.forecastMap.invalidateSize();renderForecast()}if(id==='risk'){maps.riskMap.invalidateSize();if(!riskWms)initRisk()}if(id==='soil')maps.soilMap.invalidateSize();if(id==='rain')maps.rainMap.invalidateSize()},120);
+  setTimeout(()=>{if(maps[id+'Map'])maps[id+'Map'].invalidateSize();if(id==='monitor')maps.map.invalidateSize();if(id==='forecast'){maps.forecastMap.invalidateSize();ensureForecastData()}if(id==='risk'){maps.riskMap.invalidateSize();if(!riskWms)initRisk()}if(id==='soil')maps.soilMap.invalidateSize();if(id==='rain'){maps.rainMap.invalidateSize();if(!rainLayer)loadRain('jja')}if(id==='marine'){maps.marineMap.invalidateSize();renderMarinePorts()}if(id==='agriculture'){maps.agriMap.invalidateSize();initAgriculture()}if(id==='risk'){maps.riskMap.invalidateSize();refreshRiskMode()}},120);
 }
+
+
+const normTxt=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9 ]+/g,' ').replace(/\s+/g,' ').trim();
+function geoNames(props={}){
+  const pick=(arr)=>{for(const k of arr)if(props[k]!=null&&String(props[k]).trim())return String(props[k]).trim();return''};
+  return {
+    dep:pick(['NOMBDEP','DEPARTAMEN','DEPARTAMENTO','NOM_DEP','department','dpto','DPTO']),
+    prov:pick(['NOMBPROV','PROVINCIA','NOM_PROV','province','prov']),
+    dist:pick(['NOMBDIST','DISTRITO','NOM_DIST','district','dist']),
+    ubigeo:pick(['UBIGEO','IDDIST','CODDIST','ID_UBIGEO','ubigeo'])
+  };
+}
+function hashColor(s){
+  let h=0;for(const ch of String(s))h=(h*31+ch.charCodeAt(0))>>>0;
+  return `hsl(${h%360} 68% 48%)`;
+}
+function causeBorder(cause){
+  const n=normTxt(cause);
+  return n.includes('DEFICIT HIDRICO')?'#f0a21a':'#2da7e6';
+}
+async function fetchEmergencyData(force=false){
+  if(emergencyData&&!force)return emergencyData;
+  try{
+    emergencyData=await get('/api/emergencies',25000);
+    $('emergencyCount').textContent=emergencyData.districts?.length||0;
+    $('emergencyUpdated').textContent=clockFmt.format(new Date(emergencyData.generatedAt||Date.now()));
+    return emergencyData;
+  }catch(e){
+    $('emergencyCount').textContent='—';$('emergencyUpdated').textContent='sin conexión';return null;
+  }
+}
+function emergencyMatch(feature,data){
+  const n=geoNames(feature.properties||{}), dn=normTxt(n.dist),pn=normTxt(n.prov),depn=normTxt(n.dep);
+  const candidates=(data?.districts||[]).filter(x=>normTxt(x.district)===dn);
+  if(!candidates.length)return null;
+  return candidates.find(x=>(!x.province||normTxt(x.province)===pn)&&(!x.department||normTxt(x.department)===depn))||candidates[0];
+}
+async function showEmergencyLayer(filterCause='all'){
+  if(riskWms){try{maps.riskMap.removeLayer(riskWms)}catch{}riskWms=null}
+  const [geo,data]=await Promise.all([ensureDistrict(),fetchEmergencyData(true)]);
+  if(!geo||!data){setLayerStatus('riskStatus','No fue posible cargar la información de estados de emergencia.',false);return}
+  if(riskDistrictLayer)maps.riskMap.removeLayer(riskDistrictLayer);
+  riskDistrictLayer=L.geoJSON(geo,{
+    style:f=>{
+      const m=emergencyMatch(f,data);
+      if(!m)return {color:'#5f7788',weight:.25,fillOpacity:0};
+      if(filterCause==='elnino'&&!normTxt(m.cause).includes('NINO'))return {color:'#5f7788',weight:.2,fillOpacity:0};
+      const name=geoNames(f.properties||{}),fill=hashColor(name.ubigeo||name.dist+name.prov);
+      return {color:causeBorder(m.cause),weight:1.6,fillColor:fill,fillOpacity:.62};
+    },
+    onEachFeature:(f,l)=>{
+      const m=emergencyMatch(f,data);if(!m)return;
+      const n=geoNames(f.properties||{});
+      l.on('click',()=>{
+        const days=Math.max(0,Math.ceil((Date.parse(m.end)-Date.now())/86400000));
+        $('riskInfoTitle').textContent=`${n.dist||m.district} · Estado de Emergencia`;
+        $('riskInfoText').textContent=m.cause;
+        $('riskInfoFacts').innerHTML=`<span>Departamento</span><b>${esc(n.dep||m.department||'—')}</b><span>Provincia</span><b>${esc(n.prov||m.province||'—')}</b><span>Decreto</span><b>${esc(m.decree)}</b><span>Vigencia restante</span><b>${days} días aprox.</b><span>Fin configurado</span><b>${new Date(m.end).toLocaleDateString('es-PE')}</b>`;
+        $('riskInfoLinks').innerHTML=`<a target="_blank" rel="noopener" href="${esc(m.official)}">Ver norma oficial ↗</a>`;
+      });
+      l.bindTooltip(`${n.dist||m.district} · ${m.decree}`,{sticky:true});
+    }
+  }).addTo(maps.riskMap);
+  $('emergencyLegend').classList.remove('hidden');
+  setLayerStatus('riskStatus',`Estados de emergencia vigentes cargados: ${data.districts?.length||0}. Revisión automática cada 30 min.`,true);
+}
+async function loadEnfen(){
+  try{
+    enfenData=await get('/api/enfen',15000);
+    $('enfenState').textContent=(enfenData.status||enfenData.title||'ENFEN').trim();
+    $('enfenSummary').textContent=(enfenData.summary||'Consulta el último comunicado oficial.').slice(0,700);
+    return enfenData;
+  }catch(e){$('enfenState').textContent='ENFEN temporalmente no disponible';return null}
+}
+async function setRiskMode(mode){
+  riskMode=mode;
+  document.querySelectorAll('[data-riskmode]').forEach(b=>b.classList.toggle('active',b.dataset.riskmode===mode));
+  $('riskHazardToolbar').classList.toggle('hidden',mode!=='hazards');
+  $('emergencyLegend').classList.add('hidden');
+  if(riskDistrictLayer){maps.riskMap.removeLayer(riskDistrictLayer);riskDistrictLayer=null}
+  if(mode==='hazards'){
+    $('riskInfoTitle').textContent='Peligros territoriales';
+    $('riskInfoText').textContent='Selecciona una capa oficial de INGEMMET o IGP.';
+    loadRisk('mass'); return;
+  }
+  if(mode==='emergency'){
+    $('riskLayerTitle').textContent='PCM / El Peruano · Estados de Emergencia vinculados a desastre o peligro inminente';
+    $('riskInfoTitle').textContent='Estados de emergencia vigentes';
+    $('riskInfoText').textContent='Los distritos se pintan únicamente cuando la declaratoria configurada está dentro de su plazo de vigencia.';
+    await showEmergencyLayer('all');return;
+  }
+  if(mode==='elnino'){
+    $('riskLayerTitle').textContent='ENFEN + PCM + CENEPRED · Fenómeno El Niño';
+    $('riskInfoTitle').textContent='Desarrollo de El Niño';
+    $('riskInfoText').textContent='La síntesis se obtiene del último comunicado oficial ENFEN disponible.';
+    await loadEnfen();await showEmergencyLayer('elnino');
+    const e=enfenData;
+    if(e)$('riskInfoFacts').innerHTML=`<span>Comunicado</span><b>${esc(e.title||'—')}</b><span>Estado</span><b>${esc(e.status||'—')}</b>`;
+    return;
+  }
+  if(mode==='impacts'){
+    if(riskWms){try{maps.riskMap.removeLayer(riskWms)}catch{}riskWms=null}
+    $('riskLayerTitle').textContent='SINAGERD · categorías de afectación';
+    $('riskInfoTitle').textContent='Afectaciones y daños';
+    $('riskInfoText').textContent='El módulo organiza afectaciones a personas, viviendas, agricultura, transporte, salud, educación, servicios básicos y riego. Los datos oficiales deben prevalecer sobre prensa y redes.';
+    $('riskInfoFacts').innerHTML='<span>Prioridad</span><b>INDECI / COEN / CENEPRED</b><span>Complemento</span><b>Medios identificados y claramente rotulados</b>';
+    $('riskInfoLinks').innerHTML='<a target="_blank" rel="noopener" href="https://portal.indeci.gob.pe/">INDECI ↗</a><a target="_blank" rel="noopener" href="https://sigrid4.cenepred.gob.pe/">SIGRID ↗</a>';
+  }
+}
+function refreshRiskMode(){setRiskMode(riskMode)}
+async function initAgriculture(){
+  if(!agriData){try{agriData=await get('/api/agriculture',15000)}catch{}}
+  const geo=await ensureDistrict();
+  if(geo&&!agriDistrictLayer){
+    agriDistrictLayer=L.geoJSON(geo,{
+      style:{color:'#d6e0aa',weight:.45,fillColor:'#77943b',fillOpacity:.08},
+      onEachFeature:(f,l)=>{
+        l.on('click',()=>selectAgriDistrict(f,l));
+        const n=geoNames(f.properties||{}); if(n.dist)l.bindTooltip(n.dist,{sticky:true});
+      }
+    }).addTo(maps.agriMap);
+  }
+  renderAgriSelection();
+}
+function cropInfo(){
+  const k=$('agriCropSelect').value;
+  return agriData?.crops?.[k]||{name:$('agriCropSelect').selectedOptions[0]?.textContent||'Cultivo',months:5,planting:'variable',harvest:'variable',note:'Referencia general.'};
+}
+function selectAgriDistrict(feature,layer){
+  selectedAgriFeature=feature;
+  if(agriDistrictLayer)agriDistrictLayer.eachLayer(l=>l.setStyle&&l.setStyle({fillOpacity:.08,weight:.45,color:'#d6e0aa'}));
+  layer.setStyle({fillOpacity:.38,weight:2,color:'#b8ef69',fillColor:'#6a8d31'});
+  const n=geoNames(feature.properties||{});
+  $('agriAreaTitle').textContent=[n.dist,n.prov,n.dep].filter(Boolean).join(' · ')||'Distrito seleccionado';
+  $('agriAreaText').textContent='GeoSismosLatam muestra el ciclo referencial del cultivo seleccionado y enlaza las fuentes oficiales. No inventa superficie sembrada cuando no existe un dato verificable accesible.';
+  renderAgriSelection();
+}
+function renderAgriSelection(){
+  const c=cropInfo(),n=selectedAgriFeature?geoNames(selectedAgriFeature.properties||{}):{};
+  $('agriCropTitle').textContent=c.name;
+  $('agriCropText').textContent=c.note;
+  $('agriFacts').innerHTML=`<span>Campaña</span><b>${esc(agriData?.campaign||'2026-2027')}</b><span>Siembra referencial</span><b>${esc(c.planting)}</b><span>Cosecha referencial</span><b>${esc(c.harvest)}</b><span>Fuente metodológica</span><b>MIDAGRI / SIEA</b>`;
+  const months=+c.months||0;
+  $('agriHarvestEstimate').innerHTML=`<b>Estimación orientativa</b><p>Si se conoce el mes real de siembra, una primera aproximación de cosecha puede obtenerse desplazando alrededor de <strong>${months} meses</strong>, sujeto a variedad, clima, altitud y manejo. Para una cifra productiva use SIEA y reportes locales.</p>`;
+}
+
+const marinePorts=[
+  {name:'Zorritos',lat:-3.68,lon:-80.68,zone:'north'},
+  {name:'Cabo Blanco',lat:-4.25,lon:-81.23,zone:'north'},
+  {name:'Talara',lat:-4.58,lon:-81.27,zone:'north'},
+  {name:'Paita',lat:-5.09,lon:-81.11,zone:'north'},
+  {name:'Bayóvar',lat:-5.77,lon:-81.05,zone:'north'},
+  {name:'Eten',lat:-6.91,lon:-79.87,zone:'north'},
+  {name:'Malabrigo',lat:-7.70,lon:-79.44,zone:'north'},
+  {name:'Salaverry',lat:-8.23,lon:-78.98,zone:'north'},
+  {name:'Chimbote',lat:-9.08,lon:-78.60,zone:'north'},
+  {name:'Huarmey',lat:-10.07,lon:-78.15,zone:'center'},
+  {name:'Huacho',lat:-11.11,lon:-77.61,zone:'center'},
+  {name:'Chancay',lat:-11.57,lon:-77.27,zone:'center'},
+  {name:'Ancón',lat:-11.77,lon:-77.18,zone:'center'},
+  {name:'Callao',lat:-12.06,lon:-77.15,zone:'center'},
+  {name:'Cerro Azul',lat:-13.03,lon:-76.48,zone:'center'},
+  {name:'Pisco',lat:-13.71,lon:-76.21,zone:'center'},
+  {name:'San Juan de Marcona',lat:-15.36,lon:-75.16,zone:'south'},
+  {name:'Chala',lat:-15.86,lon:-74.25,zone:'south'},
+  {name:'Atico',lat:-16.23,lon:-73.61,zone:'south'},
+  {name:'Matarani',lat:-17.00,lon:-72.11,zone:'south'},
+  {name:'Ilo',lat:-17.65,lon:-71.34,zone:'south'}
+];
+let marineFilter='all';
+function renderMarinePorts(){
+  if(!maps.marineMap)return;
+  if(!marineLayer)marineLayer=L.layerGroup().addTo(maps.marineMap);
+  marineLayer.clearLayers();
+  const pts=marinePorts.filter(p=>marineFilter==='all'||p.zone===marineFilter);
+  pts.forEach(p=>{
+    const mk=L.circleMarker([p.lat,p.lon],{radius:6,color:'#d7f4ff',weight:1.5,fillColor:'#20a8d8',fillOpacity:.9}).addTo(marineLayer);
+    mk.bindPopup(`<div class="popup"><b>${esc(p.name)}</b><p>Puerto/sector costero de consulta referencial.</p><p>Antes de una salida revisa mareas, viento, oleaje, vedas y restricciones locales.</p><a target="_blank" rel="noopener" href="https://www.dhn.mil.pe/portal/tabla-mareas">Tabla de mareas DHN ↗</a></div>`);
+  });
+  const bounds=marineFilter==='north'?[[-9.8,-82.3],[-3,-78.5]]:marineFilter==='center'?[[-15,-79],[-9.5,-75]]:marineFilter==='south'?[[-18.5,-76],[-13.5,-70]]:[[-18.6,-82.4],[-3,-70]];
+  maps.marineMap.fitBounds(bounds,{padding:[15,15]});
+}
+function setMarineFilter(v){
+  marineFilter=v;
+  document.querySelectorAll('#marineNorth,#marineCenter,#marineSouth,#marineAll').forEach(b=>b.classList.remove('active'));
+  const id=v==='north'?'marineNorth':v==='center'?'marineCenter':v==='south'?'marineSouth':'marineAll';
+  $(id)?.classList.add('active');
+  renderMarinePorts();
+}
+function renderFishingSectors(){
+  const groups=[
+    ['Costa norte','Cabo Blanco · Talara · Paita','Consulta mareas y viento; prioriza captura y liberación de especies protegidas y verifica vedas/tallas vigentes.'],
+    ['Costa norte-centro','Salaverry · Chimbote · Huarmey','Planifica según oleaje, acceso seguro y restricciones locales. No dejes líneas, anzuelos ni residuos.'],
+    ['Costa central','Huacho · Ancón · Callao · Cerro Azul','Evita zonas portuarias restringidas y verifica avisos de Capitanía y estado del mar antes de ingresar a roqueríos o embarcar.'],
+    ['Ica','Pisco · San Juan de Marcona','Atención especial a áreas protegidas y zonas de conservación; confirma dónde está permitida la pesca recreativa.'],
+    ['Costa sur','Chala · Atico · Matarani · Ilo','Revisa viento y oleaje DHN; captura únicamente recursos permitidos y respeta tallas mínimas y vedas.']
+  ];
+  $('fishingSectors').innerHTML=groups.map(g=>`<div class="sector-item"><b>${g[0]}</b><strong>${g[1]}</strong><p>${g[2]}</p></div>`).join('');
+}
+function refreshMeteoImages(){
+  const t=Date.now();
+  ['goesImage','dhnWindImage','marineWindImage'].forEach(id=>{const el=$(id);if(el)el.src=(id==='goesImage'?'/api/noaa/geocolor':'/api/dhn/wind')+'?t='+t});
+}
+
 function bind(){
   document.querySelectorAll('.mainnav button').forEach(b=>b.onclick=()=>showView(b.dataset.view));
   $('soundBtn').onclick=async()=>{sound=!sound;if(sound&&!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();$('soundBtn').textContent=sound?'🔊 ALERTAS ACTIVAS':'🔇 ACTIVAR ALERTAS'};
@@ -158,9 +590,19 @@ function bind(){
   $('historyBtn').onclick=()=>{$('historyDrawer').classList.add('open');setTimeout(()=>maps.historyMap.invalidateSize(),120);renderHistory()};
   $('closeHistory').onclick=()=>$('historyDrawer').classList.remove('open');$('runHistory').onclick=renderHistory;
   document.querySelectorAll('#forecastRange button').forEach(b=>b.onclick=()=>{forecastHours=+b.dataset.h;document.querySelectorAll('#forecastRange button').forEach(x=>x.classList.toggle('active',x===b));renderForecast()});
+  document.querySelectorAll('[data-projmode]').forEach(b=>b.onclick=()=>{projectionMode=b.dataset.projmode;document.querySelectorAll('[data-projmode]').forEach(x=>x.classList.toggle('active',x===b));renderForecast()});
   document.querySelectorAll('.soil-tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.soil-tabs button').forEach(x=>x.classList.toggle('active',x===b));setSoilLayer(b.dataset.soil)});
-  $('riskOff').onclick=()=>{if(riskWms){maps.riskMap.removeLayer(riskWms);riskWms=null}};
-  $('riskMass').onclick=()=>{if(!riskWms)initRisk()};
+  maps.soilMap.on('click',e=>identifySoil(e.latlng));
+  document.querySelectorAll('[data-riskmode]').forEach(b=>b.onclick=()=>setRiskMode(b.dataset.riskmode));
+  $('agriCropSelect').onchange=renderAgriSelection;
+  $('agriReset').onclick=()=>{selectedAgriFeature=null;maps.agriMap.fitBounds([[-20.5,-82.5],[-2,-68]],{padding:[8,8]});$('agriAreaTitle').textContent='Selecciona un distrito';$('agriAreaText').textContent='Al seleccionar un ámbito se mostrará el cultivo elegido, su ciclo referencial y los accesos a información oficial disponible.';renderAgriSelection()};
+  document.querySelectorAll('.rain-tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.rain-tabs button').forEach(x=>x.classList.toggle('active',x===b));loadRain(b.dataset.rain)});
+  document.querySelectorAll('.risk-tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.risk-tabs button').forEach(x=>x.classList.toggle('active',x===b));loadRisk(b.dataset.risk)});
+  $('refreshSatellite').onclick=refreshMeteoImages;
+  $('marineNorth').onclick=()=>setMarineFilter('north');
+  $('marineCenter').onclick=()=>setMarineFilter('center');
+  $('marineSouth').onclick=()=>setMarineFilter('south');
+  $('marineAll').onclick=()=>setMarineFilter('all');
 }
 function renderNews(){
   $('newsFeed').innerHTML=[
@@ -171,6 +613,6 @@ function renderNews(){
 }
 function tick(){ $('clock').textContent=clockFmt.format(new Date()) }
 document.addEventListener('DOMContentLoaded',()=>{
-  initMaps();bind();renderNews();initRisk();tick();setInterval(tick,1000);poll();setInterval(poll,10000);
-  setTimeout(()=>renderForecast(),2500);
+  initMaps();bind();renderNews();renderFishingSectors();loadRain('jja');initRisk();loadEnfen();tick();setInterval(tick,1000);poll();setInterval(poll,10000);
+  setTimeout(()=>renderForecast(),2500);setInterval(()=>{if(riskMode==='emergency'||riskMode==='elnino')fetchEmergencyData(true).then(()=>refreshRiskMode())},30*60*1000);
 });

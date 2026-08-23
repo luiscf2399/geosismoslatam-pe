@@ -8,7 +8,7 @@
 <link rel="icon" href="logo.svg">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="styles.css?v=5.0.0">
+<link rel="stylesheet" href="styles.css?v=7.0.0">
 </head>
 <body>
 <header class="top">
@@ -30,8 +30,10 @@
   <button class="active" data-view="monitor">◉ <b>MONITOREO</b><small>Sismos en tiempo real</small></button>
   <button data-view="forecast">◌ <b>PROYECCIÓN</b><small>Análisis probabilístico</small></button>
   <button data-view="rain">☁ <b>LLUVIAS</b><small>Precipitación y avisos</small></button>
+  <button data-view="marine">≈ <b>MAR Y PESCA</b><small>Mareas · viento · pesca responsable</small></button>
   <button data-view="risk">⚠ <b>RIESGOS</b><small>Peligros y escenarios</small></button>
   <button data-view="soil">⌂ <b>SUELOS</b><small>Construcción segura</small></button>
+  <button data-view="agriculture">✦ <b>AGRICULTURA</b><small>Siembras · cultivos · cosecha</small></button>
   <button data-view="news">▣ <b>ACTUALIDAD</b><small>Noticias y reportes</small></button>
   <button data-view="prevention">◉ <b>PREVENCIÓN</b><small>Guías y recomendaciones</small></button>
   <button data-view="method">◫ <b>METODOLOGÍA</b><small>Fuentes y modelos</small></button>
@@ -70,7 +72,7 @@
     <section class="map-panel">
       <div class="map-head">
         <div><i class="dot red"></i><b>SISMOS REPORTADOS</b><small>IGP/CENSIS prioritario · USGS como contraste</small></div>
-        <div class="status-pills"><span id="igpStatus">IGP —</span><span id="usgsStatus">USGS —</span><span>Consulta 10 s</span></div>
+        <div class="status-pills"><span id="igpStatus">IGP —</span><span id="usgsStatus">USGS —</span><span>Actualización 10 s</span></div>
       </div>
       <div id="map" class="bigmap"></div>
       <div class="map-legend floating">
@@ -100,11 +102,99 @@
       </article>
       <article class="panel">
         <h3>ALERTA DE EVENTO NUEVO</h3>
-        <p>Cuando la fuente detecte un nuevo sismo en Perú, GeoSismosLatam puede emitir sonido y destacar el epicentro. La alerta web depende del tiempo de publicación de la fuente.</p>
+        <p>Cuando IGP/CENSIS o una fuente complementaria publique un evento nuevo, GeoSismosLatam puede emitir sonido y destacar el epicentro. Es una alerta de nuevo reporte, no una predicción previa al sismo.</p>
         <small>Duración del sonido: 7 segundos.</small>
       </article>
     </aside>
   </div>
+
+  <section id="eventDetailPanel" class="event-detail-panel">
+    <div class="event-detail-top">
+      <div>
+        <span class="eyebrow">DETALLE DEL EVENTO SELECCIONADO</span>
+        <h2 id="detailTitle">Selecciona un sismo en el mapa o en la lista</h2>
+      </div>
+      <div class="detail-source">
+        <span id="detailSourceBadge" class="source-badge">IGP/CENSIS</span>
+        <small id="detailUpdated">—</small>
+      </div>
+    </div>
+
+    <div class="event-detail-grid">
+      <article class="detail-block">
+        <div class="detail-heading"><span>1</span><b>Datos del evento</b></div>
+        <div class="detail-list">
+          <div><i>⌖</i><span><small>Referencia</small><b id="detailPlace">—</b></span></div>
+          <div><i>◷</i><span><small>Fecha y hora origen local</small><b id="detailTime">—</b></span></div>
+          <div><i>◎</i><span><small>Latitud y longitud</small><b id="detailCoords">—</b></span></div>
+          <div><i>↧</i><span><small>Profundidad</small><b id="detailDepth">—</b></span></div>
+          <div><i>◉</i><span><small>Intensidad máxima reportada</small><b id="detailIntensity">—</b></span></div>
+          <div><i>M</i><span><small>Magnitud</small><b id="detailMagnitude">—</b></span></div>
+        </div>
+      </article>
+
+      <article class="detail-block">
+        <div class="detail-heading"><span>2</span><b>Más detalles</b></div>
+        <p class="detail-explain">Accede a la fuente original y a información complementaria del evento sin salir del contexto de GeoSismosLatam.</p>
+        <div class="detail-actions">
+          <a id="detailOfficialLink" class="detail-action primary" target="_blank" rel="noopener" href="https://ultimosismo.igp.gob.pe/">
+            <span><b>Ver reporte oficial</b><small>IGP / CENSIS</small></span><strong>↗</strong>
+          </a>
+          <a class="detail-action" target="_blank" rel="noopener" href="https://censis.igp.gob.pe/">
+            <span><b>Ver Centro Sismológico Nacional</b><small>CENSIS</small></span><strong>↗</strong>
+          </a>
+          <a id="detailUSGSLink" class="detail-action optional hidden" target="_blank" rel="noopener" href="#">
+            <span><b>Comparar solución internacional</b><small>USGS</small></span><strong>↗</strong>
+          </a>
+          <button id="detailCenterMap" class="detail-action button-action">
+            <span><b>Centrar este evento en el visor</b><small>GeoSismosLatam</small></span><strong>⌖</strong>
+          </button>
+        </div>
+      </article>
+
+      <article class="detail-block alert-ranges">
+        <div class="detail-heading"><span>3</span><b>Rangos de referencia</b></div>
+        <p class="detail-explain">Clasificación visual basada en los rangos de magnitud mostrados por IGP para sus reportes públicos.</p>
+        <div class="range-card low" data-range="low">
+          <div><b>M &lt; 4.5</b><small>Sismos reportados con magnitudes menores a M4.5.</small></div>
+          <span>MENOR</span>
+        </div>
+        <div class="range-card medium" data-range="medium">
+          <div><b>M4.5 a M5.9</b><small>Sismos reportados con magnitudes entre M4.5 y M5.9.</small></div>
+          <span>MODERADO</span>
+        </div>
+        <div class="range-card high" data-range="high">
+          <div><b>M ≥ 6.0</b><small>Sismos reportados con magnitudes mayores o iguales a M6.0.</small></div>
+          <span>MAYOR</span>
+        </div>
+        <div class="current-range">
+          <small>Evento seleccionado</small>
+          <b id="detailRangeText">—</b>
+        </div>
+      </article>
+    </div>
+
+    <div class="official-credit-bar">
+      <div class="credit-icon">i</div>
+      <div>
+        <b>Fuentes oficiales y agradecimiento</b>
+        <p>
+          Fuente oficial prioritaria para Perú: <strong>Instituto Geofísico del Perú (IGP) – Centro Sismológico Nacional (CENSIS)</strong>.
+          Como contraste internacional se emplea <strong>USGS</strong> cuando existe una solución coincidente.
+          GeoSismosLatam agradece a las entidades técnico-científicas que publican información para la prevención y el conocimiento ciudadano.
+        </p>
+        <small>
+          GeoSismosLatam.pe es un portal independiente de ayuda al ciudadano. La visualización, organización y análisis propios no implican afiliación,
+          patrocinio ni respaldo institucional de las entidades citadas.
+        </small>
+      </div>
+      <div class="credit-links">
+        <a target="_blank" rel="noopener" href="https://www.igp.gob.pe/">IGP ↗</a>
+        <a target="_blank" rel="noopener" href="https://censis.igp.gob.pe/">CENSIS ↗</a>
+        <a target="_blank" rel="noopener" href="https://earthquake.usgs.gov/">USGS ↗</a>
+      </div>
+    </div>
+  </section>
 
   <section id="historyDrawer" class="drawer">
     <div class="drawer-head"><div><b>HISTORIAL SÍSMICO</b><small>Catálogo visible IGP/CENSIS + contraste internacional</small></div><button id="closeHistory">✕</button></div>
@@ -129,7 +219,7 @@
   </div>
   <div class="projection-layout">
     <section class="map-panel clean">
-      <div class="map-head"><div><b>CAMPO RELATIVO DE ACTIVIDAD</b><small>ETAS inspirado + Omori-Utsu + fondo histórico suavizado</small></div><div class="segmented mini"><button class="active" data-projmode="prob">Probabilidad relativa</button><button data-projmode="trend">Tendencia</button></div></div>
+      <div class="map-head"><div><b>CAMPO RELATIVO DE ACTIVIDAD</b><small>Ensemble experimental · disparo temporal + fondo histórico suavizado</small></div><div class="segmented mini"><button class="active" data-projmode="prob">Probabilidad relativa</button><button data-projmode="trend">Tendencia</button></div></div>
       <div id="forecastMap" class="bigmap"></div>
       <div class="heat-legend floating">
         <b>NIVEL RELATIVO</b><div class="gradient"></div><div><span>Muy bajo</span><span>Bajo</span><span>Moderado</span><span>Alto</span><span>Muy alto</span></div>
@@ -159,20 +249,147 @@
 
 <section id="rain" class="view">
   <div class="section-hero blue">
-    <div><span>LLUVIAS Y PRECIPITACIONES</span><h2>Monitoreo hidrometeorológico para la prevención</h2><p>Acceso ciudadano a avisos y geovisores oficiales. Las capas se atribuyen siempre a la entidad generadora.</p></div>
-    <div class="source-stack"><b>SENAMHI</b><b>INDECI / COEN</b><b>ANA</b></div>
+    <div><span>LLUVIAS Y PRECIPITACIONES</span><h2>Monitoreo hidrometeorológico y observación satelital</h2><p>Precipitación, satélite, pronóstico numérico y avisos oficiales para facilitar la prevención ciudadana.</p></div>
+    <div class="source-stack"><b>SENAMHI</b><b>NOAA / GOES</b><b>NASA / GPM</b><b>INDECI / COEN</b><b>ANA</b></div>
   </div>
   <div class="portal-grid">
     <section class="map-panel">
-      <div class="map-head"><div><b>MAPA NACIONAL</b><small>Ubicación territorial + acceso a capas oficiales</small></div></div>
+      <div class="map-head">
+        <div><b>MAPA NACIONAL DE LLUVIAS</b><small id="rainLayerTitle">SENAMHI · cargando capa oficial…</small></div>
+        <div class="segmented mini rain-tabs">
+          <button data-rain="jja" class="active">Pronóstico estacional</button>
+          <button data-rain="numeric">Pronóstico numérico</button>
+          <button data-rain="24h">Lluvias 24 h</button>
+          <button data-rain="quebradas">Quebradas</button>
+          <button data-rain="off">Ocultar</button>
+        </div>
+      </div>
       <div id="rainMap" class="bigmap medium"></div>
-      <div class="callout floating"><b>CAPAS OFICIALES RECOMENDADAS</b><span>Precipitación 24 h</span><span>Activación de quebradas 24 h</span><span>Avisos hidrológicos</span><span>Puntos críticos</span></div>
+      <div id="rainStatus" class="layer-status floating">Cargando información oficial SENAMHI…</div>
+      <div class="callout floating rain-callout"><b>LECTURA DEL VISOR</b><span id="rainLegendText">Pronóstico climático de precipitación JJA publicado por SENAMHI.</span><span>Las capas 24 h dependen de la disponibilidad del geoservicio oficial.</span></div>
     </section>
     <aside class="portal-side">
+      <article class="panel info-panel accent-rain">
+        <div class="sectionline"><b>INFORMACIÓN METEOROLÓGICA</b><span id="rainAutoBadge">fuente oficial</span></div>
+        <h3 id="rainInfoTitle">Pronóstico estacional</h3>
+        <p id="rainInfoText">Selecciona una capa de lluvia, precipitación o quebradas para conocer qué representa y cuál es su fuente.</p>
+        <div id="rainInfoFacts" class="info-facts"></div>
+      </article>
+      <article class="panel satellite-card">
+        <div class="sectionline"><b>SATÉLITE GOES · SUDAMÉRICA SUR</b><span class="official-chip noaa">NOAA/NESDIS</span></div>
+        <div class="sat-image-wrap"><img id="goesImage" src="/api/noaa/geocolor" alt="Imagen satelital GOES de Sudamérica sur"></div>
+        <p>Imagen GeoColor oficial. NOAA indica que este visor satelital es informativo y no debe sustituir productos operacionales de emergencia.</p>
+        <div class="dual-buttons">
+          <a class="btn primary" target="_blank" rel="noopener" href="https://www.goes.noaa.gov/sector.php?sat=G19&sector=ssa">ABRIR GOES ↗</a>
+          <button id="refreshSatellite" class="btn">ACTUALIZAR IMAGEN</button>
+        </div>
+      </article>
+      <article class="panel official-card">
+        <span class="official-chip nasa">NASA GPM</span>
+        <h3>Precipitación estimada por satélite</h3>
+        <p>IMERG combina múltiples sensores satelitales para estimar lluvia global. El Early Run se actualiza cada 30 minutos y tiene una latencia mínima aproximada de 4 horas.</p>
+        <a class="btn" target="_blank" rel="noopener" href="https://gpm.nasa.gov/data/visualization/global-viewer">ABRIR IMERG GLOBAL VIEWER ↗</a>
+      </article>
       <article class="panel official-card"><span class="official-chip">SENAMHI</span><h3>Avisos meteorológicos nacionales</h3><p>Pronósticos preventivos ante eventos severos y niveles de peligrosidad.</p><a class="btn primary" target="_blank" rel="noopener" href="https://www.senamhi.gob.pe/?p=aviso-meteorologico">ABRIR SENAMHI ↗</a></article>
       <article class="panel official-card"><span class="official-chip">INDECI</span><h3>Visor INDECI</h3><p>Precipitación 24 h, activación de quebradas, avisos hidrológicos, puntos críticos y susceptibilidad.</p><a class="btn" target="_blank" rel="noopener" href="https://geo.indeci.gob.pe/visorindeci/">ABRIR VISOR INDECI ↗</a></article>
       <article class="panel official-card"><span class="official-chip">ANA</span><h3>Observatorio y emergencias hídricas</h3><p>Información oficial de recursos hídricos y emergencias asociadas.</p><a class="btn" target="_blank" rel="noopener" href="https://snirh.ana.gob.pe/ObservatorioSNIRH/">ABRIR ANA ↗</a></article>
+      <article class="panel wind-card">
+        <div class="sectionline"><b>VIENTO SOBRE EL MAR PERUANO</b><span class="official-chip dhn">DHN</span></div>
+        <img id="dhnWindImage" src="/api/dhn/wind" alt="Pronóstico de viento DHN Perú">
+        <p>Pronóstico numérico de viento a 10 m publicado por la Dirección de Hidrografía y Navegación.</p>
+        <a class="btn" target="_blank" rel="noopener" href="https://www.naylamp.dhn.mil.pe/oceano/pronosticos/">ABRIR PRONÓSTICO DHN ↗</a>
+      </article>
     </aside>
+  </div>
+</section>
+
+
+<section id="marine" class="view">
+  <div class="section-hero marine">
+    <div>
+      <span>MAR, MAREAS Y PESCA RESPONSABLE</span>
+      <h2>Litoral peruano: mareas, condiciones del mar y pesca recreativa consciente</h2>
+      <p>Consulta información oceanográfica oficial y recomendaciones de conservación antes de planificar actividades costeras.</p>
+    </div>
+    <div class="source-stack"><b>DHN / DIHIDRONAV</b><b>PRODUCE</b><b>IMARPE</b></div>
+  </div>
+
+  <div class="marine-layout">
+    <section class="map-panel">
+      <div class="map-head">
+        <div><b>PUERTOS Y SECTORES COSTEROS DE CONSULTA</b><small>Ubicaciones referenciales asociadas a puertos con información de mareas DHN</small></div>
+        <div class="segmented mini">
+          <button id="marineNorth">Norte</button>
+          <button id="marineCenter">Centro</button>
+          <button id="marineSouth">Sur</button>
+          <button id="marineAll" class="active">Todo el litoral</button>
+        </div>
+      </div>
+      <div id="marineMap" class="bigmap medium"></div>
+      <div class="marine-legend floating">
+        <b>IMPORTANTE</b>
+        <span>● Marcador = puerto/sector de consulta referencial.</span>
+        <span>No representa una zona oficialmente habilitada para pescar.</span>
+        <span>La Línea de Más Alta Marea (LAM) no se dibuja automáticamente sin cartografía oficial del sector.</span>
+      </div>
+    </section>
+
+    <aside class="portal-side marine-side">
+      <article class="panel tide-card">
+        <div class="sectionline"><b>MAREAS DEL LITORAL PERUANO</b><span class="official-chip dhn">DHN</span></div>
+        <h3>Pleamar y bajamar por puerto</h3>
+        <p>La DHN publica las horas y alturas previstas de pleamares y bajamares para diversos puertos del Perú, basadas en su Red de Estaciones Mareográficas.</p>
+        <a class="btn primary" target="_blank" rel="noopener" href="https://www.dhn.mil.pe/portal/tabla-mareas">CONSULTAR TABLA DE MAREAS ↗</a>
+      </article>
+
+      <article class="panel lam-card">
+        <div class="sectionline"><b>LÍNEA DE MÁS ALTA MAREA · LAM</b><span class="official-chip dhn">DHN</span></div>
+        <p><b>¿Qué es?</b> Es la intersección del nivel del mar con la playa durante la pleamar de sicigias ordinarias.</p>
+        <p><b>¿Por qué no la trazamos automáticamente?</b> Su determinación es técnica y sectorial. Depende de observaciones, nivelación y metodología hidrográfica oficial; una línea estimada por GeoSismosLatam podría inducir a error.</p>
+        <div class="lam-note">Cuando exista cartografía oficial pública interoperable de una zona, podrá incorporarse como capa acreditada.</div>
+        <a class="btn" target="_blank" rel="noopener" href="https://www.dhn.mil.pe/portal/oceanografia">VER INFORMACIÓN OCEANOGRÁFICA DHN ↗</a>
+      </article>
+
+      <article class="panel sea-state-card">
+        <div class="sectionline"><b>VIENTO Y ESTADO DEL MAR</b><span class="official-chip dhn">DHN</span></div>
+        <img id="marineWindImage" src="/api/dhn/wind" alt="Pronóstico de viento DHN">
+        <p>Antes de salir, consulta viento, oleaje, avisos especiales y condiciones océano-meteorológicas.</p>
+        <a class="btn" target="_blank" rel="noopener" href="https://www.naylamp.dhn.mil.pe/oceano/pronosticos/">VER OLAS Y VIENTO DHN ↗</a>
+      </article>
+    </aside>
+  </div>
+
+  <div class="fishing-grid">
+    <article class="panel fishing-rules">
+      <div class="sectionline"><b>PESCA DEPORTIVA Y RECREATIVA RESPONSABLE</b><span class="official-chip produce">PRODUCE</span></div>
+      <div class="responsible-grid">
+        <div><strong>01</strong><b>Revisa vedas y tallas mínimas</b><p>No captures recursos durante vedas ni ejemplares por debajo de la talla mínima legal.</p></div>
+        <div><strong>02</strong><b>Protege especies sensibles</b><p>No captures tortugas, cetáceos u otras especies protegidas. Evita manipular fauna marina que no sea objetivo de pesca.</p></div>
+        <div><strong>03</strong><b>Captura y libera cuando corresponda</b><p>Para pez vela y merlines protegidos por la normativa citada por PRODUCE, la pesca deportiva se permite excepcionalmente bajo captura y liberación.</p></div>
+        <div><strong>04</strong><b>Reduce el impacto</b><p>Lleva tus residuos, evita abandonar líneas y anzuelos y limita la captura a lo que realmente utilizarás cuando esté permitido.</p></div>
+        <div><strong>05</strong><b>Respeta áreas restringidas</b><p>Verifica áreas naturales protegidas, zonas portuarias, Capitanías y restricciones locales antes de pescar.</p></div>
+        <div><strong>06</strong><b>Prioriza tu seguridad</b><p>No pesques desde roqueríos o embarcaciones cuando existan avisos de oleaje anómalo, viento fuerte o mala visibilidad.</p></div>
+      </div>
+      <div class="dual-buttons">
+        <a class="btn primary" target="_blank" rel="noopener" href="https://pescayconsumoresponsable.produce.gob.pe/">PRODUCE · PESCA RESPONSABLE ↗</a>
+        <a class="btn" target="_blank" rel="noopener" href="https://www.imarpe.gob.pe/">IMARPE ↗</a>
+      </div>
+    </article>
+
+    <article class="panel fishing-places">
+      <div class="sectionline"><b>SECTORES PARA PLANIFICAR UNA SALIDA RECREATIVA</b><span>referencial</span></div>
+      <p>Estos sectores se proponen por contar con puertos o referencias costeras con información de mareas/condiciones marinas. <b>No constituyen una autorización oficial de pesca ni garantizan presencia de especies.</b></p>
+      <div id="fishingSectors" class="sector-list"></div>
+    </article>
+  </div>
+
+  <div class="official-credit-bar marine-credit">
+    <div class="credit-icon">i</div>
+    <div>
+      <b>Fuentes y responsabilidad</b>
+      <p>Información oceanográfica: Dirección de Hidrografía y Navegación de la Marina de Guerra del Perú. Conservación y normativa pesquera: PRODUCE e IMARPE. GeoSismosLatam organiza esta información con fines educativos y preventivos.</p>
+      <small>Antes de una actividad marítima o pesquera, prevalecen siempre los avisos, restricciones, vedas, tallas mínimas y disposiciones vigentes de las autoridades competentes.</small>
+    </div>
   </div>
 </section>
 
@@ -183,14 +400,70 @@
   </div>
   <div class="portal-grid">
     <section class="map-panel">
-      <div class="map-head"><div><b>RIESGO TERRITORIAL</b><small>Capas oficiales disponibles e interoperables</small></div><div class="segmented mini"><button id="riskMass" class="active">Mov. masa</button><button id="riskOff">Ocultar</button></div></div>
+      <div class="map-head risk-head">
+        <div><b>RIESGO TERRITORIAL</b><small id="riskLayerTitle">INGEMMET · susceptibilidad por movimientos en masa</small></div>
+        <div class="segmented mini risk-mode-tabs">
+          <button data-riskmode="hazards" class="active">Peligros</button>
+          <button data-riskmode="emergency">Estados de emergencia</button>
+          <button data-riskmode="elnino">Fenómeno El Niño</button>
+          <button data-riskmode="impacts">Afectaciones</button>
+        </div>
+      </div>
+      <div class="subtoolbar segmented mini risk-tabs" id="riskHazardToolbar">
+        <button data-risk="mass" class="active">Mov. masa</button>
+        <button data-risk="flood">Inundación fluvial</button>
+        <button data-risk="hazards">Peligros geológicos</button>
+        <button data-risk="igp">Geodinámica IGP</button>
+        <button data-risk="off">Ocultar</button>
+      </div>
       <div id="riskMap" class="bigmap medium"></div>
-      <div class="callout floating"><b>PELIGROS</b><span>Inundación</span><span>Huaicos</span><span>Movimientos en masa</span><span>Sismo</span><span>Tsunami</span></div>
+      <div id="riskStatus" class="layer-status floating">Cargando capa oficial INGEMMET…</div>
+      <div id="emergencyLegend" class="emergency-legend floating hidden">
+        <b>ESTADOS DE EMERGENCIA · SINAGERD</b>
+        <span><i class="cause-rain"></i> borde azul: lluvias / El Niño</span>
+        <span><i class="cause-drought"></i> borde ámbar: déficit hídrico</span>
+        <small>El relleno diferencia distritos. Los ámbitos vencidos se retiran automáticamente.</small>
+      </div>
+      <div class="callout floating risk-callout"><b>PELIGROS DISPONIBLES</b><span>Movimientos en masa</span><span>Susceptibilidad a inundación fluvial</span><span>Inventario de peligros geológicos</span><span>Geodinámica en zonas estudiadas por IGP</span></div>
     </section>
     <aside class="portal-side">
-      <article class="panel"><h3>Buscar estudios y escenarios</h3><p>Para un análisis oficial del distrito o provincia seleccionada, consulta SIGRID y los visores del SINAGERD.</p><a class="btn primary" href="https://sigrid4.cenepred.gob.pe/" target="_blank" rel="noopener">ABRIR SIGRID ↗</a></article>
-      <article class="panel"><h3>INGEMMET · GEOCATMIN</h3><p>Información geológica y susceptibilidad por movimientos en masa.</p><a class="btn" href="https://geocatmin.ingemmet.gob.pe/geocatmin/" target="_blank" rel="noopener">ABRIR GEOCATMIN ↗</a></article>
-      <article class="panel"><h3>SIRAIM / INDECI</h3><p>Integra capas técnico-científicas de SENAMHI, INGEMMET, IGP, CENEPRED y DHN.</p><a class="btn" href="https://siraimdevs.indeci.gob.pe/" target="_blank" rel="noopener">ABRIR SIRAIM ↗</a></article>
+      <article class="panel info-panel accent-risk" id="riskInfoPanel">
+        <div class="sectionline"><b>INFORMACIÓN DEL MAPA</b><span id="riskAutoBadge">30 min</span></div>
+        <h3 id="riskInfoTitle">Peligros territoriales</h3>
+        <p id="riskInfoText">Selecciona una capa o un distrito para ver una explicación breve y la fuente utilizada.</p>
+        <div id="riskInfoFacts" class="info-facts"></div>
+        <div id="riskInfoLinks" class="info-links"></div>
+      </article>
+      <article class="panel risk-summary accent-amber">
+        <div class="sectionline"><b>ESTADOS DE EMERGENCIA</b><span class="official-chip">PCM / EL PERUANO</span></div>
+        <div class="metric-grid">
+          <div><span>Distritos vigentes cargados</span><b id="emergencyCount">—</b></div>
+          <div><span>Última revisión</span><b id="emergencyUpdated">—</b></div>
+        </div>
+        <p>Se muestran declaratorias por desastre o peligro inminente en el marco del SINAGERD cuya vigencia legal puede verificarse. Una norma vencida deja de pintarse.</p>
+        <a class="btn" target="_blank" rel="noopener" href="https://www.gob.pe/institucion/pcm/normas-legales">NORMAS PCM ↗</a>
+      </article>
+      <article class="panel elnino-card">
+        <div class="sectionline"><b>FENÓMENO EL NIÑO</b><span class="official-chip">ENFEN</span></div>
+        <h3 id="enfenState">Consultando ENFEN…</h3>
+        <p id="enfenSummary">La situación se actualiza desde la publicación oficial más reciente disponible.</p>
+        <div class="dual-buttons">
+          <a class="btn primary" href="https://enfen.imarpe.gob.pe/" target="_blank" rel="noopener">ABRIR ENFEN ↗</a>
+          <a class="btn" href="https://sigrid.cenepred.gob.pe/" target="_blank" rel="noopener">ESCENARIOS CENEPRED ↗</a>
+        </div>
+      </article>
+      <article class="panel">
+        <h3>Afectaciones que monitorea el SINAGERD</h3>
+        <div class="impact-tags">
+          <span>Personas</span><span>Viviendas</span><span>Agricultura</span><span>Transporte</span>
+          <span>Salud</span><span>Educación</span><span>Servicios básicos</span><span>Riego</span>
+        </div>
+        <p>Los reportes de prensa o redes se consideran información secundaria y deben diferenciarse de los registros oficiales.</p>
+        <div class="dual-buttons">
+          <a class="btn" href="https://portal.indeci.gob.pe/" target="_blank" rel="noopener">INDECI ↗</a>
+          <a class="btn" href="https://sigrid4.cenepred.gob.pe/" target="_blank" rel="noopener">SIGRID ↗</a>
+        </div>
+      </article>
     </aside>
   </div>
 </section>
@@ -204,20 +477,114 @@
     <section class="map-panel">
       <div class="map-head">
         <div><b>ESTUDIOS DE ZONIFICACIÓN IGP</b><small>La información existe únicamente en zonas estudiadas por la entidad</small></div>
-        <div class="segmented mini soil-tabs"><button data-soil="9" class="active">Zonificación</button><button data-soil="4">Suelos</button><button data-soil="5">Cap. portante</button><button data-soil="10">Área estudiada</button></div>
+        <div class="segmented mini soil-tabs">
+          <button data-soil="9" class="active">Zonificación</button>
+          <button data-soil="4">Suelos</button>
+          <button data-soil="5">Cap. portante</button>
+          <button data-soil="2">Geología</button>
+          <button data-soil="1">Geomorfología</button>
+          <button data-soil="3">Geodinámica</button>
+          <button data-soil="10">Área estudiada</button>
+        </div>
       </div>
       <div id="soilMap" class="bigmap medium"></div>
     </section>
     <aside class="portal-side">
-      <article class="panel">
-        <h3>Interpretación básica</h3>
-        <div class="soil-legend"><span><i class="s0"></i>Roca / muy rígido</span><span><i class="s1"></i>S1 · rígido</span><span><i class="s2"></i>S2 · medianamente rígido</span><span><i class="s3"></i>S3 · blando</span><span><i class="s4"></i>S4 · condiciones especiales</span></div>
-        <p class="warning-text">Este geovisor no reemplaza un Estudio de Mecánica de Suelos específico para el predio.</p>
+      <article class="panel soil-explain">
+        <h3>Interpretación básica del perfil de suelo</h3>
+        <details><summary><i class="s0"></i><b>S0 · Roca dura</b><small>¿Qué significa?</small></summary><p>Roca sana o terreno extremadamente rígido. Suele deformarse poco durante el movimiento sísmico. La clasificación de un predio debe verificarse con estudio específico.</p></details>
+        <details><summary><i class="s1"></i><b>S1 · Rígido</b><small>¿Qué significa?</small></summary><p>Puede corresponder a roca fracturada, gravas densas, arenas muy densas o suelos muy compactos. Presenta alta rigidez relativa.</p></details>
+        <details><summary><i class="s2"></i><b>S2 · Intermedio</b><small>¿Qué significa?</small></summary><p>Suelos con rigidez intermedia, como arenas densas, gravas medianamente densas o suelos cohesivos compactos. La respuesta sísmica depende de sus propiedades locales.</p></details>
+        <details><summary><i class="s3"></i><b>S3 · Blando</b><small>¿Qué significa?</small></summary><p>Suelos más flexibles, por ejemplo arenas sueltas o suelos cohesivos blandos. Pueden experimentar mayor deformación y amplificación del movimiento.</p></details>
+        <details><summary><i class="s4"></i><b>S4 · Condiciones especiales</b><small>¿Qué significa?</small></summary><p>Terrenos que requieren evaluación específica por condiciones geotécnicas o dinámicas especiales. No deben interpretarse con una regla general.</p></details>
+        <div class="vs30-note"><b>Vs30</b><span>Velocidad promedio de ondas de corte en los primeros 30 m. Ayuda a caracterizar la rigidez dinámica del terreno, pero no reemplaza el EMS.</span></div>
+        <p class="warning-text">Este geovisor es informativo. La cartografía urbana o regional no reemplaza un Estudio de Mecánica de Suelos del lote.</p>
       </article>
       <article class="panel"><h3>¿Quiero construir aquí?</h3><ol><li>Revisar zonificación y peligros.</li><li>Realizar estudio de mecánica de suelos.</li><li>Diseñar conforme al RNE.</li><li>Validar cimentación durante obra.</li></ol><a class="btn primary" href="https://zonificaperu.igp.gob.pe/" target="_blank" rel="noopener">ABRIR ZONIFICA PERÚ ↗</a></article>
+      <article class="panel info-panel accent-soil">
+        <div class="sectionline"><b>INFORMACIÓN DEL PUNTO</b><span class="official-chip">IGP</span></div>
+        <h3 id="soilInfoTitle">Haz clic en el mapa</h3>
+        <p id="soilInfoText">GeoSismosLatam consultará las capas públicas disponibles del estudio de zonificación del IGP en ese punto.</p>
+        <div id="soilInfoFacts" class="info-facts"></div>
+        <a class="btn" href="https://zonificaperu.igp.gob.pe/" target="_blank" rel="noopener">ABRIR ZONIFICA PERÚ ↗</a>
+      </article>
       <article class="panel clif">
         <img src="clif_logo.jpg" alt="CLIF Contratistas Generales S.A.C.">
         <div><b>CLIF CONTRATISTAS GENERALES S.A.C.</b><p>Ingeniería · Construcción · Proyectos · Prevención</p><a class="whatsapp" href="https://wa.me/message/TJKZ4FZLGCGFD1" target="_blank" rel="noopener">● CONTACTAR POR WHATSAPP</a></div>
+      </article>
+    </aside>
+  </div>
+</section>
+
+
+<section id="agriculture" class="view">
+  <div class="section-hero agriculture">
+    <div>
+      <span>AGRICULTURA Y CAMPAÑA AGRÍCOLA</span>
+      <h2>Siembras, cultivos temporales, cosechas y riesgos agroclimáticos</h2>
+      <p>El portal prioriza información oficial MIDAGRI/SIEA y fuentes técnicas; las estimaciones de cosecha se muestran como referencias y no sustituyen reportes de campo.</p>
+    </div>
+    <div class="source-stack"><b>MIDAGRI / SIEA</b><b>SENAMHI</b><b>CENEPRED</b><b>INDECI</b></div>
+  </div>
+
+  <div class="agri-layout">
+    <section class="map-panel">
+      <div class="map-head">
+        <div><b>MAPA AGRÍCOLA NACIONAL</b><small>Selecciona un distrito para consultar información disponible</small></div>
+        <div class="agri-controls">
+          <select id="agriCropSelect">
+            <option value="potato">Papa</option>
+            <option value="rice">Arroz cáscara</option>
+            <option value="yellow_maize">Maíz amarillo duro</option>
+            <option value="starchy_maize">Maíz amiláceo</option>
+            <option value="bean">Frijol grano seco</option>
+            <option value="onion">Cebolla</option>
+            <option value="quinoa">Quinua</option>
+            <option value="wheat">Trigo</option>
+          </select>
+          <button id="agriReset" class="btn">VER TODO EL PERÚ</button>
+        </div>
+      </div>
+      <div id="agriMap" class="bigmap medium"></div>
+      <div class="agri-legend floating">
+        <b>CAMPAÑA AGRÍCOLA</b>
+        <span>Agosto – julio: siembras.</span>
+        <span>Enero – diciembre: cosechas/producción.</span>
+        <small>Metodología estadística SIEA/MIDAGRI.</small>
+      </div>
+    </section>
+
+    <aside class="portal-side">
+      <article class="panel info-panel accent-agri">
+        <div class="sectionline"><b>INFORMACIÓN DEL DISTRITO</b><span id="agriRefreshBadge">24 h</span></div>
+        <h3 id="agriAreaTitle">Selecciona un distrito</h3>
+        <p id="agriAreaText">Al seleccionar un ámbito se mostrará el cultivo elegido, su ciclo referencial y los accesos a información oficial disponible.</p>
+        <div id="agriFacts" class="info-facts"></div>
+      </article>
+
+      <article class="panel">
+        <div class="sectionline"><b>CULTIVO SELECCIONADO</b><span class="official-chip">referencial</span></div>
+        <h3 id="agriCropTitle">Papa</h3>
+        <div class="crop-stage" id="agriStage">
+          <span>Siembra</span><span>Desarrollo</span><span>Cosecha</span>
+        </div>
+        <p id="agriCropText">Selecciona un distrito para contextualizar el cultivo.</p>
+        <div id="agriHarvestEstimate" class="estimate-box"></div>
+      </article>
+
+      <article class="panel">
+        <h3>Fuentes oficiales agrícolas</h3>
+        <p>El SIEA recopila avances y perspectivas de siembras y cosechas a nivel distrito, provincia y región; GeoSismosLatam solo mostrará valores exactos cuando el dato pueda verificarse.</p>
+        <div class="dual-buttons">
+          <a class="btn primary" href="https://siea.midagri.gob.pe/portal/siea" target="_blank" rel="noopener">SIEA ↗</a>
+          <a class="btn" href="https://siea.midagri.gob.pe/gee/index.html" target="_blank" rel="noopener">SIEA SATELITAL ↗</a>
+        </div>
+      </article>
+
+      <article class="panel source-separation">
+        <h3>Información secundaria</h3>
+        <p>Noticias, radios, canales, revistas y redes sociales pueden ayudar a detectar incidencias tempranas, pero se mostrarán separadas de los datos oficiales y con su fuente visible.</p>
+        <span class="secondary-badge">NO OFICIAL / POR VERIFICAR</span>
       </article>
     </aside>
   </div>
@@ -241,7 +608,7 @@
   <div class="section-hero"><div><span>METODOLOGÍA Y CRÉDITOS</span><h2>Transparencia de datos y límites del portal</h2></div></div>
   <div class="method-grid">
     <article class="panel"><h3>Monitoreo sísmico</h3><p>IGP/CENSIS se presenta como fuente oficial peruana. USGS funciona como contraste internacional. GeoSismosLatam correlaciona eventos cercanos en tiempo y espacio para reducir duplicados.</p></article>
-    <article class="panel"><h3>Proyección experimental</h3><p>Combina componentes inspirados en ETAS, Omori-Utsu, relación Gutenberg–Richter y suavizado espacial histórico. Es un indicador relativo y experimental; no predice fecha, lugar y magnitud exactos de futuros terremotos.</p></article>
+    <article class="panel"><h3>Proyección experimental</h3><p>Combina un componente temporal inspirado en procesos de réplicas, ponderación por magnitud y un fondo espacial construido con el catálogo histórico disponible. El resultado es un índice relativo y experimental sujeto a validación retrospectiva; no predice fecha, lugar y magnitud exactos de futuros terremotos.</p></article>
     <article class="panel"><h3>Fuentes nacionales</h3><p>IGP/CENSIS · SENAMHI · CENEPRED/SIGRID · INDECI/COEN · INGEMMET · ANA · MVCS/RNE. Cada portal mantiene acceso a la fuente original.</p></article>
   </div>
 </section>
@@ -256,6 +623,6 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 <script src="https://unpkg.com/esri-leaflet@3.0.15/dist/esri-leaflet.js"></script>
-<script src="app.js?v=5.0.0"></script>
+<script src="app.js?v=7.0.0"></script>
 </body>
 </html>
