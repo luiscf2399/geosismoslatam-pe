@@ -8,7 +8,7 @@
 <link rel="icon" href="logo.svg">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="styles.css?v=7.0.0">
+<link rel="stylesheet" href="styles.css?v=7.2.0">
 </head>
 <body>
 <header class="top">
@@ -43,6 +43,26 @@
   <span>ⓘ Portal ciudadano independiente de ayuda y prevención. Los datos provienen de fuentes oficiales y son atribuidos a sus entidades generadoras.</span>
   <span id="updated">Actualizado: —</span>
 </div>
+
+<aside id="contextLegend" class="context-legend">
+  <button id="contextLegendToggle" class="context-legend-toggle" aria-expanded="true">
+    <span>ⓘ</span>
+    <div><b id="contextLegendMiniTitle">Cómo leer este visor</b><small id="contextLegendMiniSource">GeoSismosLatam</small></div>
+    <strong id="contextLegendArrow">⌄</strong>
+  </button>
+  <div id="contextLegendBody" class="context-legend-body">
+    <div class="context-legend-head">
+      <div>
+        <span class="eyebrow">LEYENDA E INTERPRETACIÓN</span>
+        <h3 id="contextLegendTitle">Monitoreo sísmico</h3>
+      </div>
+      <span id="contextLegendSource" class="legend-source">IGP / CENSIS</span>
+    </div>
+    <p id="contextLegendIntro">Selecciona un elemento del mapa para ver su explicación.</p>
+    <div id="contextLegendItems" class="legend-items"></div>
+    <div id="contextLegendNote" class="legend-note"></div>
+  </div>
+</aside>
 
 <main>
 <section id="monitor" class="view active">
@@ -623,6 +643,6 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 <script src="https://unpkg.com/esri-leaflet@3.0.15/dist/esri-leaflet.js"></script>
-<script src="app.js?v=7.0.0"></script>
+<script src="app.js?v=7.2.0"></script>
 </body>
 </html>

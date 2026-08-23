@@ -405,6 +405,10 @@ export default {
     const u=new URL(request.url);
     try{
       if(u.pathname==="/api/quakes") return quakes(request,ctx);
+      if(u.pathname==="/"){
+        const home=new URL("/index.html",request.url);
+        return env.ASSETS.fetch(new Request(home,request));
+      }
       if(u.pathname==="/api/health") return json({ok:true,time:Date.now(),service:"GeoSismosLatam API v7"});
       if(u.pathname==="/api/emergencies") return emergencies(request,ctx,env);
       if(u.pathname==="/api/enfen") return enfen(ctx,env);

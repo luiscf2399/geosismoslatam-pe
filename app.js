@@ -272,8 +272,9 @@ async function loadRain(mode='jja'){
   clearRain();
   const title=$('rainLayerTitle'), legend=$('rainLegendText');
   try{
-    if(mode==='off'){title.textContent='Capas ocultas';legend.textContent='Seleccione una capa oficial para visualizarla.';setLayerStatus('rainStatus','Sin capa temática activa.',true);return}
+    if(mode==='off'){setContextLegend('rain',{title:'Lluvias · sin capa temática',intro:'El mapa base permanece visible, pero no hay una capa meteorológica activa.'});title.textContent='Capas ocultas';legend.textContent='Seleccione una capa oficial para visualizarla.';setLayerStatus('rainStatus','Sin capa temática activa.',true);return}
     if(mode==='jja'){
+      setContextLegend('rain',{title:'Lluvias · pronóstico estacional',source:'SENAMHI / IDESEP',intro:'Perspectiva climática estacional de precipitación. No representa lluvia observada en tiempo real.'});
       rainLayer=L.tileLayer.wms(SEN_JJA,{layers:SEN_JJA_LAYER,format:'image/png',transparent:true,opacity:.68,version:'1.1.1',attribution:'SENAMHI · IDESEP'}).addTo(maps.rainMap);
       title.textContent='SENAMHI · Pronóstico climático de precipitación JJA';if($('rainInfoTitle')){$('rainInfoTitle').textContent='Pronóstico climático estacional';$('rainInfoText').textContent='Representa una perspectiva climática estacional de precipitación. No equivale a lluvia observada en tiempo real.';$('rainInfoFacts').innerHTML='<span>Fuente</span><b>SENAMHI / IDESEP</b><span>Uso</span><b>Planificación preventiva</b>'};
       legend.textContent='Pronóstico climático estacional JJA. No equivale a lluvia observada en tiempo real.';
@@ -286,6 +287,7 @@ async function loadRain(mode='jja'){
       setLayerStatus('rainStatus','SENAMHI: climatología de agosto solicitada al geoservicio oficial.',true); return;
     }
     if(mode==='numeric'){
+      setContextLegend('rain',{title:'Lluvias · pronóstico numérico',source:'SENAMHI',intro:'Pronóstico modelado. Revisa siempre fecha y hora de validez del producto.'});
       setLayerStatus('rainStatus','Consultando predicción numérica SENAMHI…',true);
       const lyr=await discoverWms(SEN_NUM,['prec','precip','lluv']);
       rainLayer=L.tileLayer.wms(SEN_NUM,{layers:lyr.name,format:'image/png',transparent:true,opacity:.72,version:'1.1.1',attribution:'SENAMHI · IDESEP'}).addTo(maps.rainMap);
@@ -293,6 +295,7 @@ async function loadRain(mode='jja'){
       legend.textContent='Pronóstico numérico oficial de precipitación. Consulta la fecha de validez del producto original antes de interpretarlo.';
       setLayerStatus('rainStatus','Capa de predicción numérica cargada.',true); return;
     }
+    setContextLegend('rain',{title:mode==='24h'?'Lluvias intensas · 24 h':'Activación de quebradas',source:'SENAMHI',intro:mode==='24h'?'Producto preventivo de corto plazo ante lluvias intensas.':'Producto oficial de posibilidad de activación de quebradas. La vigencia y nivel dependen del aviso publicado.'});
     const base=mode==='24h'?SEN_24H:SEN_Q;
     setLayerStatus('rainStatus','Consultando catálogo WMS de SENAMHI…',true);
     const lyr=await discoverWms(base,mode==='24h'?['lluv','precip','24h','aviso']:['queb','activ']);
@@ -332,6 +335,8 @@ function initRisk(){loadRisk('mass')}
 function setSoilLayer(id){
   const names={9:'Zonificación sísmica-geotécnica',4:'Tipos de suelo',5:'Capacidad portante',2:'Geología',1:'Geomorfología',3:'Geodinámica',10:'Área estudiada'};
   try{
+    const layerExplain={9:'Zonificación sísmica-geotécnica: clasifica zonas según respuesta esperada del terreno.',4:'Tipos de suelo: muestra unidades o perfiles identificados en los estudios.',5:'Capacidad portante: referencia geotécnica de resistencia del terreno donde existe estudio.',2:'Geología: unidades y materiales geológicos mapeados.',1:'Geomorfología: formas del relieve y procesos que modelan el terreno.',3:'Geodinámica: procesos activos o potenciales que pueden afectar el territorio.',10:'Área estudiada: delimita dónde existe información técnica publicada por el IGP.'};
+    setContextLegend('soil',{title:'Suelos · '+(names[id]||'capa IGP'),source:'IGP · Zonifica Perú',intro:layerExplain[id]||LEGENDS.soil.intro});
     if(soilLayer)maps.soilMap.removeLayer(soilLayer);
     soilLayer=L.esri.dynamicMapLayer({url:IGP_SOIL,layers:[+id],opacity:.72,useCors:true}).addTo(maps.soilMap);
     $('soilInfoTitle').textContent=names[id]||'Capa IGP';
@@ -369,7 +374,125 @@ async function identifySoil(latlng){
     $('soilInfoText').textContent='No fue posible consultar el punto en este momento. Usa Zonifica Perú como fuente oficial de respaldo.';
   }
 }
+
+const LEGENDS={
+  monitor:{
+    theme:'monitor',title:'Monitoreo sísmico',source:'IGP/CENSIS + USGS',
+    intro:'Los símbolos representan sismos publicados por las fuentes consultadas. El color se asigna según magnitud.',
+    items:[
+      ['#35a769','circle','M < 4.5','Eventos de menor magnitud dentro de la clasificación visual del portal.'],
+      ['#f2a51a','circle','M 4.5–5.9','Eventos de magnitud intermedia.'],
+      ['#df3e3e','circle','M ≥ 6.0','Eventos de mayor magnitud; consulta siempre el reporte oficial.'],
+      ['#ffffff','outline','Círculo resaltado','Evento más reciente o seleccionado.']
+    ],
+    note:'La alerta del portal indica un nuevo reporte publicado. No constituye predicción previa del sismo.'
+  },
+  forecast:{
+    theme:'forecast',title:'Proyección experimental',source:'Modelo GeoSismosLatam',
+    intro:'El mapa de calor representa concentración relativa de actividad sísmica dentro del modelo experimental.',
+    items:[
+      ['#2877a8','','Muy bajo','Menor concentración relativa dentro de la ventana analizada.'],
+      ['#36a96b','','Bajo','Actividad relativa baja.'],
+      ['#d5c83a','','Moderado','Concentración intermedia.'],
+      ['#ec8a28','','Alto','Mayor concentración relativa.'],
+      ['#cc3b37','','Muy alto','Máxima concentración relativa dentro del modelo, no certeza de ocurrencia.']
+    ],
+    note:'No predice fecha, lugar ni magnitud exacta de un terremoto.'
+  },
+  rain:{
+    theme:'rain',title:'Lluvias y precipitación',source:'SENAMHI / NOAA / NASA / INDECI',
+    intro:'Cada capa corresponde a un producto diferente: observación satelital, pronóstico modelado o aviso oficial.',
+    items:[
+      ['#2f9bd7','','Precipitación / lluvia','La escala exacta depende de la capa oficial seleccionada.'],
+      ['#82d7ff','outline','Satélite','Imagen de nubosidad/atmósfera; no equivale directamente a lluvia acumulada.'],
+      ['#f0a221','line','Aviso / quebradas','Producto preventivo; revisa nivel, fecha de emisión y vigencia.']
+    ],
+    note:'La leyenda cromática específica del WMS debe interpretarse con la simbología publicada por la fuente oficial.'
+  },
+  marine:{
+    theme:'marine',title:'Mar, mareas y pesca',source:'DHN / PRODUCE / IMARPE',
+    intro:'Los puntos del mapa son puertos o sectores de consulta para mareas y condiciones marinas.',
+    items:[
+      ['#20a8d8','circle','Puerto / sector','Referencia geográfica para consultar mareas y estado del mar.'],
+      ['#ffffff','outline','LAM','No se traza automáticamente sin cartografía oficial sectorial.'],
+      ['#35aabb','line','Condición marina','Revisa oleaje, viento, avisos y restricciones antes de salir.']
+    ],
+    note:'Los puntos no representan autorización de pesca ni garantizan presencia de especies.'
+  },
+  risk:{
+    theme:'risk',title:'Riesgos y peligros',source:'CENEPRED / INDECI / PCM / INGEMMET / ENFEN',
+    intro:'La simbología cambia según el modo seleccionado: peligros, estados de emergencia, El Niño o afectaciones.',
+    items:[
+      ['#2da7e6','outline','Borde azul','Declaratorias asociadas a lluvias o El Niño.'],
+      ['#f0a21a','outline','Borde ámbar','Declaratorias asociadas a déficit hídrico.'],
+      ['#8b5cf6','','Relleno por distrito','Diferencia visual entre distritos vigentes; no representa intensidad.']
+    ],
+    note:'Cuando vence el plazo configurado de una declaratoria, el distrito deja de mostrarse como vigente.'
+  },
+  soil:{
+    theme:'soil',title:'Suelos y construcción segura',source:'IGP / Zonifica Perú',
+    intro:'La interpretación depende de la capa activa. Las clases S0–S4 describen perfiles de suelo de manera general.',
+    items:[
+      ['#817d71','','S0','Roca dura o terreno extremadamente rígido.'],
+      ['#59ab65','','S1','Roca o suelo rígido.'],
+      ['#d6b338','','S2','Suelo de rigidez intermedia.'],
+      ['#e88b32','','S3','Suelo blando o más flexible.'],
+      ['#d64242','','S4','Condiciones especiales que requieren evaluación específica.']
+    ],
+    note:'La cartografía regional/urbana no reemplaza un Estudio de Mecánica de Suelos del lote.'
+  },
+  agriculture:{
+    theme:'agri',title:'Agricultura y campaña agrícola',source:'MIDAGRI / SIEA',
+    intro:'El mapa permite seleccionar distritos y contextualizar el cultivo elegido con un calendario referencial.',
+    items:[
+      ['#77943b','','Distrito','Unidad territorial consultable.'],
+      ['#b8ef69','outline','Distrito seleccionado','Ámbito activo para mostrar información del cultivo.'],
+      ['#89b64a','line','Etapa de cultivo','Siembra, desarrollo o cosecha según información disponible o referencia agronómica.']
+    ],
+    note:'Las fechas de cosecha son orientativas cuando no existe un dato oficial verificable para el distrito.'
+  },
+  news:{
+    theme:'monitor',title:'Actualidad',source:'Fuentes identificadas',
+    intro:'Cada tarjeta enlaza a su fuente original para que el usuario pueda verificar la publicación.',
+    items:[['#1475b7','','Fuente oficial','Información institucional o técnico-científica.'],['#b6842e','','Fuente secundaria','Debe mostrarse como información por verificar cuando provenga de medios o redes.']],
+    note:'La plataforma no debe presentar una publicación periodística como si fuera un reporte oficial.'
+  },
+  prevention:{
+    theme:'monitor',title:'Prevención',source:'INDECI / IGP / entidades competentes',
+    intro:'Las tarjetas resumen acciones preventivas antes, durante y después de una emergencia.',
+    items:[['#1678b4','','Antes','Preparación y reducción de vulnerabilidad.'],['#f0a221','','Durante','Protección inmediata y seguimiento de indicaciones oficiales.'],['#35a769','','Después','Evaluación, réplicas y retorno seguro.']],
+    note:'Ante una emergencia real, siguen prevaleciendo las instrucciones de las autoridades.'
+  },
+  method:{
+    theme:'monitor',title:'Metodología y fuentes',source:'GeoSismosLatam',
+    intro:'Explica de dónde provienen los datos, cómo se procesan y cuáles son las limitaciones del portal.',
+    items:[['#35a769','','Oficial','Dato publicado por una entidad competente.'],['#2f9bd7','','Procesamiento propio','Visualización, integración o cálculo realizado por GeoSismosLatam.'],['#f0a221','','Experimental','Modelo o estimación sujeta a validación.']],
+    note:'Citar una entidad no implica afiliación, patrocinio ni respaldo institucional.'
+  }
+};
+function legendRows(items){
+  return (items||[]).map(([color,shape,title,desc])=>`<div class="legend-row"><i class="legend-symbol ${shape||''}" style="background:${color};border-color:${shape==='outline'?color:'#ffffff55'}"></i><div><b>${esc(title)}</b><small>${esc(desc)}</small></div></div>`).join('');
+}
+function setContextLegend(view,override={}){
+  const cfg={...(LEGENDS[view]||LEGENDS.monitor),...override};
+  const box=$('contextLegend'); if(!box)return;
+  box.className=`context-legend theme-${cfg.theme||view}`;
+  $('contextLegendTitle').textContent=cfg.title||'Cómo leer este visor';
+  $('contextLegendMiniTitle').textContent=cfg.title||'Cómo leer este visor';
+  $('contextLegendSource').textContent=cfg.source||'GeoSismosLatam';
+  $('contextLegendMiniSource').textContent=cfg.source||'GeoSismosLatam';
+  $('contextLegendIntro').textContent=cfg.intro||'';
+  $('contextLegendItems').innerHTML=legendRows(cfg.items||[]);
+  $('contextLegendNote').textContent=cfg.note||'';
+}
+function toggleContextLegend(){
+  const box=$('contextLegend'),collapsed=box.classList.toggle('collapsed');
+  $('contextLegendToggle').setAttribute('aria-expanded',String(!collapsed));
+  $('contextLegendArrow').textContent=collapsed?'⌃':'⌄';
+}
+
 function showView(id){
+  setContextLegend(id);
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===id));document.querySelectorAll('.mainnav button').forEach(b=>b.classList.toggle('active',b.dataset.view===id));
   setTimeout(()=>{if(maps[id+'Map'])maps[id+'Map'].invalidateSize();if(id==='monitor')maps.map.invalidateSize();if(id==='forecast'){maps.forecastMap.invalidateSize();ensureForecastData()}if(id==='risk'){maps.riskMap.invalidateSize();if(!riskWms)initRisk()}if(id==='soil')maps.soilMap.invalidateSize();if(id==='rain'){maps.rainMap.invalidateSize();if(!rainLayer)loadRain('jja')}if(id==='marine'){maps.marineMap.invalidateSize();renderMarinePorts()}if(id==='agriculture'){maps.agriMap.invalidateSize();initAgriculture()}if(id==='risk'){maps.riskMap.invalidateSize();refreshRiskMode()}},120);
 }
@@ -449,6 +572,10 @@ async function loadEnfen(){
 }
 async function setRiskMode(mode){
   riskMode=mode;
+  if(mode==='hazards')setContextLegend('risk',{title:'Riesgos · peligros territoriales',source:'INGEMMET / IGP',intro:'Capas de susceptibilidad, peligros geológicos y geodinámica. El color depende de la simbología de la fuente oficial.'});
+  if(mode==='emergency')setContextLegend('risk',{title:'Riesgos · Estados de Emergencia',source:'PCM / Diario Oficial El Peruano',intro:'Distritos con declaratorias vigentes vinculadas a desastre o peligro inminente dentro del SINAGERD.'});
+  if(mode==='elnino')setContextLegend('risk',{title:'Riesgos · Fenómeno El Niño',source:'ENFEN / PCM / CENEPRED',intro:'Combina el estado oficial ENFEN con ámbitos declarados y escenarios disponibles.'});
+  if(mode==='impacts')setContextLegend('risk',{title:'Riesgos · afectaciones',source:'INDECI / COEN / CENEPRED',intro:'Organiza daños y afectaciones por categoría. Los reportes secundarios se muestran separados de los oficiales.'});
   document.querySelectorAll('[data-riskmode]').forEach(b=>b.classList.toggle('active',b.dataset.riskmode===mode));
   $('riskHazardToolbar').classList.toggle('hidden',mode!=='hazards');
   $('emergencyLegend').classList.add('hidden');
@@ -512,6 +639,7 @@ function selectAgriDistrict(feature,layer){
 }
 function renderAgriSelection(){
   const c=cropInfo(),n=selectedAgriFeature?geoNames(selectedAgriFeature.properties||{}):{};
+  setContextLegend('agriculture',{title:'Agricultura · '+c.name,source:'MIDAGRI / SIEA',intro:'Selecciona un distrito para contextualizar el cultivo. El portal distingue datos oficiales de referencias agronómicas.'});
   $('agriCropTitle').textContent=c.name;
   $('agriCropText').textContent=c.note;
   $('agriFacts').innerHTML=`<span>Campaña</span><b>${esc(agriData?.campaign||'2026-2027')}</b><span>Siembra referencial</span><b>${esc(c.planting)}</b><span>Cosecha referencial</span><b>${esc(c.harvest)}</b><span>Fuente metodológica</span><b>MIDAGRI / SIEA</b>`;
@@ -557,6 +685,7 @@ function renderMarinePorts(){
 }
 function setMarineFilter(v){
   marineFilter=v;
+  setContextLegend('marine',{title:'Mar y pesca · '+(v==='all'?'todo el litoral':v==='north'?'costa norte':v==='center'?'costa central':'costa sur'),source:'DHN / PRODUCE / IMARPE',intro:'Los marcadores son puntos costeros de consulta. Revisa mareas, oleaje, viento, vedas y restricciones antes de una salida.'});
   document.querySelectorAll('#marineNorth,#marineCenter,#marineSouth,#marineAll').forEach(b=>b.classList.remove('active'));
   const id=v==='north'?'marineNorth':v==='center'?'marineCenter':v==='south'?'marineSouth':'marineAll';
   $(id)?.classList.add('active');
@@ -579,6 +708,7 @@ function refreshMeteoImages(){
 
 function bind(){
   document.querySelectorAll('.mainnav button').forEach(b=>b.onclick=()=>showView(b.dataset.view));
+  $('contextLegendToggle').onclick=toggleContextLegend;
   $('soundBtn').onclick=async()=>{sound=!sound;if(sound&&!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();$('soundBtn').textContent=sound?'🔊 ALERTAS ACTIVAS':'🔇 ACTIVAR ALERTAS'};
   document.querySelectorAll('[data-window]').forEach(b=>b.onclick=()=>{mapWindow=+b.dataset.window;document.querySelectorAll('[data-window]').forEach(x=>x.classList.toggle('active',x===b));renderMonitor()});
   $('minMag').oninput=()=>{$('minMagVal').textContent=(+$('minMag').value).toFixed(1);renderMonitor()};
@@ -613,6 +743,6 @@ function renderNews(){
 }
 function tick(){ $('clock').textContent=clockFmt.format(new Date()) }
 document.addEventListener('DOMContentLoaded',()=>{
-  initMaps();bind();renderNews();renderFishingSectors();loadRain('jja');initRisk();loadEnfen();tick();setInterval(tick,1000);poll();setInterval(poll,10000);
+  initMaps();bind();setContextLegend('monitor');renderNews();renderFishingSectors();loadRain('jja');initRisk();loadEnfen();tick();setInterval(tick,1000);poll();setInterval(poll,10000);
   setTimeout(()=>renderForecast(),2500);setInterval(()=>{if(riskMode==='emergency'||riskMode==='elnino')fetchEmergencyData(true).then(()=>refreshRiskMode())},30*60*1000);
 });
