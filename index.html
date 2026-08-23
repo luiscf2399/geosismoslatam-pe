@@ -2,61 +2,260 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#4e2c16">
-<meta name="description" content="GeoSismosLatam - Monitoreo sísmico gratuito del Perú, información IGP/USGS y análisis probabilístico experimental">
-<title>GEOSISMOSLATAM.PE</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#06182a">
+<title>GeoSismosLatam.pe | Portal ciudadano de información y prevención</title>
+<link rel="icon" href="logo.svg">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="logo.svg" type="image/svg+xml">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="styles.css?v=3.0.0">
+<link rel="stylesheet" href="styles.css?v=5.0.0">
 </head>
 <body>
-<header class="hero">
-  <div class="brand"><img src="logo.svg" class="brand-logo" alt="GeoSismosLatam"><div><h1>GEOSISMOSLATAM.PE</h1><p>MONITOREO · INFORMACIÓN · PREVENCIÓN</p><small>Plataforma privada gratuita · Perú</small></div></div>
-  <div class="hero-right"><div class="status"><i id="statusDot"></i><span id="liveStatus">Inicializando</span><b id="lastUpdate">—</b></div><button id="audioBtn" class="audio-btn">🔇 ACTIVAR ALERTAS</button><div class="country">🇵🇪 PERÚ</div></div>
+<header class="top">
+  <div class="brand">
+    <img src="logo.svg" alt="GeoSismosLatam">
+    <div>
+      <h1>GeoSismosLatam<span>.pe</span></h1>
+      <p>Información y prevención para todos</p>
+    </div>
+  </div>
+  <div class="header-status">
+    <div class="mini"><span>●</span><b>ACTUALIZACIÓN AUTOMÁTICA</b><em id="clock">—</em></div>
+    <button id="soundBtn" class="alert-button">🔇 ACTIVAR ALERTAS</button>
+    <button id="alertState" class="alert-state">SIN ALERTAS</button>
+  </div>
 </header>
-<nav class="nav">
-  <button class="navbtn active" data-view="monitor">⌂ MONITOREO</button><button class="navbtn" data-view="forecast">◎ PROYECCIÓN</button><button class="navbtn" data-view="news">▤ ACTUALIDAD SÍSMICA</button><button class="navbtn" data-view="prevention">⚠ PREVENCIÓN</button><button class="navbtn" data-view="method">ⓘ METODOLOGÍA</button>
-</nav>
-<div class="warning"><b>IMPORTANTE:</b> IGP/CENSIS es la fuente oficial de información sísmica del Perú. GeoSismosLatam integra fuentes públicas y realiza análisis experimental independiente. No constituye predicción determinista ni reemplaza alertas oficiales.</div>
 
-<section id="view-monitor" class="view active">
-  <div class="livebar"><div><span>MONITOREO</span><b id="monitorState">CONECTANDO</b></div><div><span>ÚLTIMA CONSULTA</span><b id="lastPoll">—</b></div><div><span>PRÓXIMA CONSULTA</span><b id="pollCountdown">60 s</b></div><div><span>USGS</span><b id="usgsState">—</b></div><div><span>IGP/CENSIS</span><b id="igpState">—</b></div></div>
-  <main class="dashboard">
-    <aside class="left">
-      <section class="panel"><h3>CAPAS DEL VISOR</h3><label class="toggle"><span>Imagen satelital Esri</span><input id="satToggle" type="checkbox" checked></label><label class="toggle"><span>Etiquetas y lugares Esri</span><input id="labelsToggle" type="checkbox" checked></label><label class="toggle"><span>Límites departamentales</span><input id="depToggle" type="checkbox" checked></label><label class="toggle"><span>Límites provinciales</span><input id="provToggle" type="checkbox" checked></label><label class="toggle"><span>Límites distritales</span><input id="distToggle" type="checkbox"></label><label class="toggle"><span>Sismos observados</span><input id="quakeToggle" type="checkbox" checked></label></section>
-      <section class="panel"><h3>FILTROS</h3><label>Magnitud mínima <b id="minMagTxt">M ≥ 1.0</b></label><input id="minMag" type="range" min="0" max="7" step=".5" value="1"><label>Profundidad</label><select id="depthSelect"><option value="all">Todas</option><option value="shallow">Superficial (&lt;70 km)</option><option value="mid">Intermedia (70–300 km)</option><option value="deep">Profunda (&gt;300 km)</option></select><button id="refreshBtn" class="primary">↻ CONSULTAR AHORA</button></section>
-      <section class="panel compact"><h3>PERMANENCIA EN MAPA</h3><small>M &lt; 5.0 → 5 horas</small><small>M 5.0–6.4 → 24 horas</small><small>M ≥ 6.5 → 7 días</small></section>
+<nav class="mainnav">
+  <button class="active" data-view="monitor">◉ <b>MONITOREO</b><small>Sismos en tiempo real</small></button>
+  <button data-view="forecast">◌ <b>PROYECCIÓN</b><small>Análisis probabilístico</small></button>
+  <button data-view="rain">☁ <b>LLUVIAS</b><small>Precipitación y avisos</small></button>
+  <button data-view="risk">⚠ <b>RIESGOS</b><small>Peligros y escenarios</small></button>
+  <button data-view="soil">⌂ <b>SUELOS</b><small>Construcción segura</small></button>
+  <button data-view="news">▣ <b>ACTUALIDAD</b><small>Noticias y reportes</small></button>
+  <button data-view="prevention">◉ <b>PREVENCIÓN</b><small>Guías y recomendaciones</small></button>
+  <button data-view="method">◫ <b>METODOLOGÍA</b><small>Fuentes y modelos</small></button>
+</nav>
+
+<div class="citizen-strip">
+  <span>ⓘ Portal ciudadano independiente de ayuda y prevención. Los datos provienen de fuentes oficiales y son atribuidos a sus entidades generadoras.</span>
+  <span id="updated">Actualizado: —</span>
+</div>
+
+<main>
+<section id="monitor" class="view active">
+  <div class="workspace three">
+    <aside class="side left">
+      <article class="hero-card">
+        <div class="sectionline"><b>ÚLTIMO SISMO</b><span class="source-badge">IGP/CENSIS</span></div>
+        <div id="latestMag" class="latest-mag">M —</div>
+        <h2 id="latestPlace">Esperando reporte…</h2>
+        <p id="latestTime">—</p>
+        <div class="facts">
+          <span>Profundidad</span><b id="latestDepth">—</b>
+          <span>Intensidad</span><b id="latestIntensity">—</b>
+          <span>Coordenadas</span><b id="latestCoords">—</b>
+          <span>Código</span><b id="latestCode">—</b>
+        </div>
+        <a id="latestLink" class="btn primary" target="_blank" rel="noopener" href="https://ultimosismo.igp.gob.pe/">VER REPORTE OFICIAL ↗</a>
+      </article>
+
+      <article class="panel compact">
+        <div class="sectionline"><b>SISMOS RECIENTES (24 H)</b><span id="count">0</span></div>
+        <div id="recentList" class="quake-list"><div class="loading">Consultando IGP/CENSIS y USGS…</div></div>
+        <button id="historyBtn" class="btn wide">VER HISTORIAL DE SISMOS</button>
+      </article>
     </aside>
-    <section class="center">
-      <article class="map-panel main-map"><div class="map-title"><span class="dot"></span><b>SISMOS OCURRIDOS</b><small>USGS global + referencia IGP/CENSIS</small></div><div id="actualMap" class="map"></div></article>
-      <div class="analytics">
-        <article class="panel table-panel"><div class="panel-head"><b>Eventos visibles</b><span id="eventCount">0</span></div><div class="scroll"><table><thead><tr><th>Hora PE</th><th>M</th><th>Prof.</th><th>Referencia</th></tr></thead><tbody id="quakeTable"></tbody></table></div></article>
-        <article class="panel"><div class="panel-head"><b>Actividad</b><span>ventanas móviles</span></div><div class="kpis"><div><span>1 h</span><b id="q1">—</b></div><div><span>5 h</span><b id="q5">—</b></div><div><span>24 h</span><b id="q24">—</b></div><div><span>Máx.</span><b id="qmax">—</b></div></div><canvas id="magChart"></canvas></article>
-        <article class="panel report"><div class="panel-head"><b>Detalle del evento</b><span id="reportStatus">—</span></div><div id="reportBody" class="report-body"><div class="placeholder">Selecciona un epicentro.</div></div></article>
+
+    <section class="map-panel">
+      <div class="map-head">
+        <div><i class="dot red"></i><b>SISMOS REPORTADOS</b><small>IGP/CENSIS prioritario · USGS como contraste</small></div>
+        <div class="status-pills"><span id="igpStatus">IGP —</span><span id="usgsStatus">USGS —</span><span>Consulta 10 s</span></div>
+      </div>
+      <div id="map" class="bigmap"></div>
+      <div class="map-legend floating">
+        <b>SIMBOLOGÍA</b>
+        <span><i class="qdot green"></i>M &lt; 4.5</span>
+        <span><i class="qdot amber"></i>4.5 ≤ M &lt; 6.0</span>
+        <span><i class="qdot red"></i>M ≥ 6.0</span>
+      </div>
+      <div class="maptools">
+        <button data-window="24">24 h</button><button data-window="168">7 días</button>
+        <label>Magnitud mínima <input id="minMag" type="range" min="1" max="7" step=".1" value="1"><b id="minMagVal">1.0</b></label>
       </div>
     </section>
-  </main>
-  <div class="ticker"><b>● ALERTAS Y COMUNICADOS</b><span id="tickerText">Sistema iniciado. Esperando datos sísmicos…</span></div>
-</section>
 
-<section id="view-forecast" class="view">
-  <div class="forecast-head"><div><h2>PROYECCIÓN PROBABILÍSTICA EXPERIMENTAL</h2><p>Áreas referenciales calculadas con actividad sísmica reciente e histórica. No son epicentros futuros.</p></div><div class="forecast-clock"><span>ÚLTIMO CÁLCULO</span><b id="forecastUpdated">—</b><span>PRÓXIMO CÁLCULO</span><b id="forecastCountdown">30:00</b></div></div>
-  <div class="forecast-layout">
-    <aside class="panel forecast-side"><h3>VISUALIZACIÓN</h3><label>Horizonte</label><select id="forecastHorizon"><option value="24">24 horas</option><option value="168">7 días</option><option value="720">30 días</option></select><div class="legend-card"><b>MAGNITUD CARACTERÍSTICA MODELADA</b><div><i class="lg low"></i><span>M 1.0–4.4</span></div><div><i class="lg med"></i><span>M 4.5–6.4</span></div><div><i class="lg high"></i><span>M 6.5–10.0</span></div></div><small class="note">Color = rango de magnitud modelada. Opacidad = intensidad relativa del modelo. Las áreas persisten mientras conserven sustento estadístico.</small><button id="forecastNow" class="primary">↻ RECALCULAR AHORA</button></aside>
-    <article class="map-panel forecast-map-panel"><div class="map-title"><span class="dot orange"></span><b>MAPA DE ÁREAS PROBABILÍSTICAS</b><small>actualización cada 30 min</small></div><div id="forecastMap" class="map"></div></article>
-    <aside class="panel forecast-detail"><h3>ÁREA SELECCIONADA</h3><div id="forecastDetail" class="report-body"><div class="placeholder">Selecciona un área coloreada.</div></div></aside>
+    <aside class="side right">
+      <article class="panel">
+        <div class="sectionline"><b>MONITOREO</b><span class="live-dot">EN VIVO</span></div>
+        <div class="health"><span>IGP/CENSIS</span><b id="igpHealth">Consultando</b><span>USGS</span><b id="usgsHealth">Consultando</b><span>Última consulta</span><b id="lastPoll">—</b></div>
+      </article>
+      <article class="panel">
+        <h3>CAPAS</h3>
+        <label class="toggle"><span>Imagen satelital</span><input id="sat" type="checkbox" checked></label>
+        <label class="toggle"><span>Etiquetas y lugares</span><input id="labels" type="checkbox" checked></label>
+        <label class="toggle"><span>Límites departamentales</span><input id="deps" type="checkbox" checked></label>
+        <label class="toggle"><span>Límites provinciales</span><input id="provs" type="checkbox" checked></label>
+        <label class="toggle"><span>Límites distritales</span><input id="dists" type="checkbox"></label>
+      </article>
+      <article class="panel">
+        <h3>ALERTA DE EVENTO NUEVO</h3>
+        <p>Cuando la fuente detecte un nuevo sismo en Perú, GeoSismosLatam puede emitir sonido y destacar el epicentro. La alerta web depende del tiempo de publicación de la fuente.</p>
+        <small>Duración del sonido: 7 segundos.</small>
+      </article>
+    </aside>
   </div>
-  <div class="model-strip"><div><span>EVENTOS MUNDIALES UTILIZADOS</span><b id="worldUsed">—</b></div><div><span>EVENTOS PERÚ/REGIÓN</span><b id="regionUsed">—</b></div><div><span>ZONAS ACTIVAS</span><b id="zoneCount">—</b></div><div><span>MODELO</span><b>GS-ENSEMBLE 3.0 EXP.</b></div></div>
+
+  <section id="historyDrawer" class="drawer">
+    <div class="drawer-head"><div><b>HISTORIAL SÍSMICO</b><small>Catálogo visible IGP/CENSIS + contraste internacional</small></div><button id="closeHistory">✕</button></div>
+    <div class="history-controls">
+      <select id="histDays"><option value="1">24 horas</option><option value="7">7 días</option><option value="30" selected>30 días</option><option value="90">90 días</option><option value="365">1 año</option><option value="all">Todo lo cargado</option></select>
+      <select id="histSource"><option value="all">Todas las fuentes</option><option value="IGP">IGP/CENSIS</option><option value="USGS">USGS</option></select>
+      <input id="histMag" type="number" min="0" max="10" step=".1" value="0" placeholder="Mín.">
+      <input id="histSearch" placeholder="Buscar lugar, código…">
+      <button id="runHistory" class="btn">CONSULTAR</button>
+    </div>
+    <div class="history-grid">
+      <div id="historyMap"></div>
+      <div class="tablebox"><table><thead><tr><th>Fecha/hora</th><th>Fuente</th><th>M</th><th>Prof.</th><th>Referencia</th><th>Reporte</th></tr></thead><tbody id="histRows"></tbody></table></div>
+    </div>
+  </section>
 </section>
 
-<section id="view-news" class="view news-view"><div class="news-header"><div><h2>ACTUALIDAD SÍSMICA</h2><p>Seguimiento informativo de eventos M ≥ 4.5. Noticias, fotografías y comunicados conservan su fuente original.</p></div><button id="newsRefresh" class="primary inline">↻ ACTUALIZAR</button></div><div class="source-pills"><span>OFICIAL</span><span>MEDIOS</span><span>FOTOGRAFÍAS</span><span>NO VERIFICADO</span></div><main id="newsFeed" class="news-feed"><div class="feed-loading">Buscando información relacionada con los eventos recientes…</div></main></section>
+<section id="forecast" class="view">
+  <div class="section-hero">
+    <div><span>PROYECCIÓN EXPERIMENTAL</span><h2>Análisis probabilístico de actividad sísmica</h2><p>Visualización limpia de tasa relativa, tendencia y concentración espacial. No constituye predicción determinista.</p></div>
+    <div class="segmented" id="forecastRange"><button data-h="24" class="active">24 h</button><button data-h="168">7 días</button><button data-h="720">30 días</button><button data-h="2160">90 días</button></div>
+  </div>
+  <div class="projection-layout">
+    <section class="map-panel clean">
+      <div class="map-head"><div><b>CAMPO RELATIVO DE ACTIVIDAD</b><small>ETAS inspirado + Omori-Utsu + fondo histórico suavizado</small></div><div class="segmented mini"><button class="active" data-projmode="prob">Probabilidad relativa</button><button data-projmode="trend">Tendencia</button></div></div>
+      <div id="forecastMap" class="bigmap"></div>
+      <div class="heat-legend floating">
+        <b>NIVEL RELATIVO</b><div class="gradient"></div><div><span>Muy bajo</span><span>Bajo</span><span>Moderado</span><span>Alto</span><span>Muy alto</span></div>
+      </div>
+    </section>
+    <aside class="projection-info">
+      <article class="panel">
+        <div class="sectionline"><b>MODELO GS-ENSEMBLE 5.0</b><span class="experimental">EXPERIMENTAL</span></div>
+        <div class="metric-grid">
+          <div><span>Eventos analizados</span><b id="projEvents">—</b></div>
+          <div><span>Último cálculo</span><b id="projTime">—</b></div>
+          <div><span>Próximo cálculo</span><b>30 min</b></div>
+          <div><span>Resolución</span><b>~35–55 km</b></div>
+        </div>
+      </article>
+      <article class="panel">
+        <h3>ZONAS PRIORIZADAS</h3>
+        <div id="zoneCards" class="zonecards"><div class="loading">Calculando…</div></div>
+      </article>
+      <article class="panel note">
+        <b>Cómo interpretar</b>
+        <p>El color representa concentración y tasa relativa dentro del modelo. No significa que un terremoto ocurrirá con certeza en una zona roja.</p>
+      </article>
+    </aside>
+  </div>
+</section>
 
-<section id="view-prevention" class="view info-view"><h2>PREVENCIÓN Y RESPUESTA</h2><div class="info-grid"><article><h3>Durante un sismo</h3><p>Mantén la calma, aléjate de ventanas y objetos que puedan caer y sigue las indicaciones de las autoridades y planes de evacuación de tu localidad.</p></article><article><h3>Después del movimiento</h3><p>Evalúa daños visibles, evita estructuras comprometidas, prepárate para réplicas y utiliza comunicaciones responsables.</p></article><article><h3>Evento fuerte en el mar</h3><p>GeoSismosLatam no emite alertas de tsunami. Consulta siempre los comunicados oficiales de la Dirección de Hidrografía y Navegación y las autoridades de emergencia.</p></article><article><h3>Fuentes oficiales</h3><p>IGP/CENSIS para información sísmica; INDECI/COEN para emergencias y DHN para información oficial de tsunami.</p></article></div></section>
+<section id="rain" class="view">
+  <div class="section-hero blue">
+    <div><span>LLUVIAS Y PRECIPITACIONES</span><h2>Monitoreo hidrometeorológico para la prevención</h2><p>Acceso ciudadano a avisos y geovisores oficiales. Las capas se atribuyen siempre a la entidad generadora.</p></div>
+    <div class="source-stack"><b>SENAMHI</b><b>INDECI / COEN</b><b>ANA</b></div>
+  </div>
+  <div class="portal-grid">
+    <section class="map-panel">
+      <div class="map-head"><div><b>MAPA NACIONAL</b><small>Ubicación territorial + acceso a capas oficiales</small></div></div>
+      <div id="rainMap" class="bigmap medium"></div>
+      <div class="callout floating"><b>CAPAS OFICIALES RECOMENDADAS</b><span>Precipitación 24 h</span><span>Activación de quebradas 24 h</span><span>Avisos hidrológicos</span><span>Puntos críticos</span></div>
+    </section>
+    <aside class="portal-side">
+      <article class="panel official-card"><span class="official-chip">SENAMHI</span><h3>Avisos meteorológicos nacionales</h3><p>Pronósticos preventivos ante eventos severos y niveles de peligrosidad.</p><a class="btn primary" target="_blank" rel="noopener" href="https://www.senamhi.gob.pe/?p=aviso-meteorologico">ABRIR SENAMHI ↗</a></article>
+      <article class="panel official-card"><span class="official-chip">INDECI</span><h3>Visor INDECI</h3><p>Precipitación 24 h, activación de quebradas, avisos hidrológicos, puntos críticos y susceptibilidad.</p><a class="btn" target="_blank" rel="noopener" href="https://geo.indeci.gob.pe/visorindeci/">ABRIR VISOR INDECI ↗</a></article>
+      <article class="panel official-card"><span class="official-chip">ANA</span><h3>Observatorio y emergencias hídricas</h3><p>Información oficial de recursos hídricos y emergencias asociadas.</p><a class="btn" target="_blank" rel="noopener" href="https://snirh.ana.gob.pe/ObservatorioSNIRH/">ABRIR ANA ↗</a></article>
+    </aside>
+  </div>
+</section>
 
-<section id="view-method" class="view info-view"><h2>METODOLOGÍA Y TRANSPARENCIA</h2><div class="method-box"><p><b>Monitoreo:</b> USGS GeoJSON se consulta cada 60 segundos. IGP/CENSIS se consulta como referencia oficial para eventos peruanos.</p><p><b>Proyección:</b> modelo experimental de áreas relativas. Combina ponderaciones por magnitud, profundidad, recencia, distancia a Perú, densidad espacial, persistencia y actividad regional/mundial. Se recalcula cada 30 minutos.</p><p><b>Persistencia:</b> una zona no desaparece por una sola caída del score; se aplica memoria temporal/histéresis. La magnitud característica se actualiza en cada ciclo.</p><p><b>Limitación científica:</b> ningún resultado constituye predicción exacta de fecha, hora, lugar o magnitud de un terremoto.</p></div></section>
+<section id="risk" class="view">
+  <div class="section-hero amber">
+    <div><span>RIESGOS Y PELIGROS</span><h2>Geovisor nacional multipeligro</h2><p>Consulta orientativa de fuentes oficiales sobre inundaciones, movimientos en masa, sismos, tsunami y otros peligros.</p></div>
+    <div class="source-stack"><b>CENEPRED / SIGRID</b><b>INDECI</b><b>INGEMMET</b></div>
+  </div>
+  <div class="portal-grid">
+    <section class="map-panel">
+      <div class="map-head"><div><b>RIESGO TERRITORIAL</b><small>Capas oficiales disponibles e interoperables</small></div><div class="segmented mini"><button id="riskMass" class="active">Mov. masa</button><button id="riskOff">Ocultar</button></div></div>
+      <div id="riskMap" class="bigmap medium"></div>
+      <div class="callout floating"><b>PELIGROS</b><span>Inundación</span><span>Huaicos</span><span>Movimientos en masa</span><span>Sismo</span><span>Tsunami</span></div>
+    </section>
+    <aside class="portal-side">
+      <article class="panel"><h3>Buscar estudios y escenarios</h3><p>Para un análisis oficial del distrito o provincia seleccionada, consulta SIGRID y los visores del SINAGERD.</p><a class="btn primary" href="https://sigrid4.cenepred.gob.pe/" target="_blank" rel="noopener">ABRIR SIGRID ↗</a></article>
+      <article class="panel"><h3>INGEMMET · GEOCATMIN</h3><p>Información geológica y susceptibilidad por movimientos en masa.</p><a class="btn" href="https://geocatmin.ingemmet.gob.pe/geocatmin/" target="_blank" rel="noopener">ABRIR GEOCATMIN ↗</a></article>
+      <article class="panel"><h3>SIRAIM / INDECI</h3><p>Integra capas técnico-científicas de SENAMHI, INGEMMET, IGP, CENEPRED y DHN.</p><a class="btn" href="https://siraimdevs.indeci.gob.pe/" target="_blank" rel="noopener">ABRIR SIRAIM ↗</a></article>
+    </aside>
+  </div>
+</section>
 
-<footer><div class="footer-brand"><img src="logo.svg" alt=""><div><b>GEOSISMOSLATAM.PE</b><small>Monitoreo · Información · Prevención</small></div></div><div class="footer-contact">Plataforma independiente de acceso gratuito</div></footer>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script><script src="app.js?v=3.0.0"></script>
-</body></html>
+<section id="soil" class="view">
+  <div class="section-hero soil">
+    <div><span>SUELOS Y CONSTRUCCIÓN SEGURA</span><h2>Conoce el suelo antes de construir</h2><p>Zonificación geofísica-geotécnica, capacidad portante y estudios territoriales publicados por el IGP.</p></div>
+    <div class="source-stack"><b>IGP · ZONIFICA PERÚ</b><b>RNE / MVCS</b></div>
+  </div>
+  <div class="portal-grid">
+    <section class="map-panel">
+      <div class="map-head">
+        <div><b>ESTUDIOS DE ZONIFICACIÓN IGP</b><small>La información existe únicamente en zonas estudiadas por la entidad</small></div>
+        <div class="segmented mini soil-tabs"><button data-soil="9" class="active">Zonificación</button><button data-soil="4">Suelos</button><button data-soil="5">Cap. portante</button><button data-soil="10">Área estudiada</button></div>
+      </div>
+      <div id="soilMap" class="bigmap medium"></div>
+    </section>
+    <aside class="portal-side">
+      <article class="panel">
+        <h3>Interpretación básica</h3>
+        <div class="soil-legend"><span><i class="s0"></i>Roca / muy rígido</span><span><i class="s1"></i>S1 · rígido</span><span><i class="s2"></i>S2 · medianamente rígido</span><span><i class="s3"></i>S3 · blando</span><span><i class="s4"></i>S4 · condiciones especiales</span></div>
+        <p class="warning-text">Este geovisor no reemplaza un Estudio de Mecánica de Suelos específico para el predio.</p>
+      </article>
+      <article class="panel"><h3>¿Quiero construir aquí?</h3><ol><li>Revisar zonificación y peligros.</li><li>Realizar estudio de mecánica de suelos.</li><li>Diseñar conforme al RNE.</li><li>Validar cimentación durante obra.</li></ol><a class="btn primary" href="https://zonificaperu.igp.gob.pe/" target="_blank" rel="noopener">ABRIR ZONIFICA PERÚ ↗</a></article>
+      <article class="panel clif">
+        <img src="clif_logo.jpg" alt="CLIF Contratistas Generales S.A.C.">
+        <div><b>CLIF CONTRATISTAS GENERALES S.A.C.</b><p>Ingeniería · Construcción · Proyectos · Prevención</p><a class="whatsapp" href="https://wa.me/message/TJKZ4FZLGCGFD1" target="_blank" rel="noopener">● CONTACTAR POR WHATSAPP</a></div>
+      </article>
+    </aside>
+  </div>
+</section>
+
+<section id="news" class="view">
+  <div class="section-hero"><div><span>ACTUALIDAD</span><h2>Información sísmica y preventiva</h2><p>Acceso a fuentes y publicaciones. Las noticias externas deben verificarse en su fuente original.</p></div></div>
+  <div id="newsFeed" class="cards-grid"></div>
+</section>
+
+<section id="prevention" class="view">
+  <div class="section-hero green"><div><span>PREVENCIÓN</span><h2>Antes, durante y después de una emergencia</h2><p>Cultura de prevención y construcción segura para reducir exposición y vulnerabilidad.</p></div></div>
+  <div class="prevention-grid">
+    <article><b>ANTES</b><h3>Prepárate</h3><ul><li>Identifica zonas seguras y rutas.</li><li>Revisa el estado estructural de tu vivienda.</li><li>Organiza una mochila para emergencias.</li><li>Consulta fuentes oficiales.</li></ul></article>
+    <article><b>DURANTE</b><h3>Protégete</h3><ul><li>Conserva la calma.</li><li>Aléjate de elementos que puedan caer.</li><li>Sigue las indicaciones oficiales.</li><li>No uses ascensores.</li></ul></article>
+    <article><b>DESPUÉS</b><h3>Evalúa</h3><ul><li>Revisa daños antes de reingresar.</li><li>Prepárate para réplicas.</li><li>Evita difundir información no verificada.</li><li>Reporta emergencias a las autoridades.</li></ul></article>
+  </div>
+</section>
+
+<section id="method" class="view">
+  <div class="section-hero"><div><span>METODOLOGÍA Y CRÉDITOS</span><h2>Transparencia de datos y límites del portal</h2></div></div>
+  <div class="method-grid">
+    <article class="panel"><h3>Monitoreo sísmico</h3><p>IGP/CENSIS se presenta como fuente oficial peruana. USGS funciona como contraste internacional. GeoSismosLatam correlaciona eventos cercanos en tiempo y espacio para reducir duplicados.</p></article>
+    <article class="panel"><h3>Proyección experimental</h3><p>Combina componentes inspirados en ETAS, Omori-Utsu, relación Gutenberg–Richter y suavizado espacial histórico. Es un indicador relativo y experimental; no predice fecha, lugar y magnitud exactos de futuros terremotos.</p></article>
+    <article class="panel"><h3>Fuentes nacionales</h3><p>IGP/CENSIS · SENAMHI · CENEPRED/SIGRID · INDECI/COEN · INGEMMET · ANA · MVCS/RNE. Cada portal mantiene acceso a la fuente original.</p></article>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="credits"><b>Fuentes oficiales y técnico-científicas:</b><span>IGP/CENSIS</span><span>SENAMHI</span><span>CENEPRED/SIGRID</span><span>INDECI/COEN</span><span>ANA</span><span>INGEMMET</span><span>MVCS/RNE</span><span>USGS (complementaria)</span></div>
+  <p>GeoSismosLatam.pe es un portal independiente de ayuda al ciudadano orientado a incentivar la cultura de prevención. No pertenece al Estado peruano y no sustituye alertas ni reportes oficiales.</p>
+  <div class="footer-contact"><a href="mailto:luis2399cuadrafelipa@gmail.com">Contacto</a><a href="mailto:clifcontratistasgsac@gmail.com">CLIF</a><a href="https://wa.me/message/TJKZ4FZLGCGFD1" target="_blank">WhatsApp</a></div>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+<script src="https://unpkg.com/esri-leaflet@3.0.15/dist/esri-leaflet.js"></script>
+<script src="app.js?v=5.0.0"></script>
+</body>
+</html>

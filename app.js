@@ -1,99 +1,176 @@
 const $=id=>document.getElementById(id);
-const PERU={minLat:-20.6,maxLat:.7,minLon:-82.5,maxLon:-68};
-const USGS_HOUR='https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson';
+const PERU={minLat:-22.8,maxLat:1.5,minLon:-85.5,maxLon:-68};
+const IGP='https://ide.igp.gob.pe/arcgis/rest/services/monitoreocensis/SismosReportados/MapServer/0/query';
+const IGP_LAST='https://ide.igp.gob.pe/arcgis/rest/services/monitoreocensis/UltimoSismo/MapServer/0/query';
 const USGS_DAY='https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson';
-const USGS_MONTH45='https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_month.geojson';
-const IGP_RECENT='https://ide.igp.gob.pe/arcgis/rest/services/monitoreocensis/SismosReportados/MapServer/0/query?where=1%3D1&outFields=*&orderByFields=fecha%20DESC&resultRecordCount=200&returnGeometry=true&outSR=4326&f=geojson';
-const IGP_LAST='https://ide.igp.gob.pe/arcgis/rest/services/monitoreocensis/UltimoSismo/MapServer/0/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&f=geojson';
-const ESRI_IMG='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-const ESRI_STREET='https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
-const ESRI_LABEL='https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
+const USGS_WEEK='https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson';
+const USGS_MONTH='https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson';
+const IMG='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+const STREET='https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+const LABEL='https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png';
 const DEP='https://raw.githubusercontent.com/orbisgeo/geojson-peru-data/master/peru_departamental_simple.geojson';
 const PROV='https://raw.githubusercontent.com/orbisgeo/geojson-peru-data/master/peru_provincial_simple.geojson';
 const DIST='https://raw.githubusercontent.com/orbisgeo/geojson-peru-data/master/peru_distrital_simple.geojson';
-const POLL_MS=60000, FORECAST_MS=30*60000;
-let pollRemain=60,forecastRemain=30*60,audioEnabled=false,audioCtx=null;
-let hourData=[],dayData=[],igpData=[],global45=[],visibleEvents=[],seen=new Set(JSON.parse(localStorage.getItem('gs_seen_v3')||'[]'));
-let actualMap,forecastMap,quakeLayer,forecastLayer,labelsA,labelsF,imgA,imgF,streetA,streetF,borders={dep:[],prov:[],dist:[]},geo={};
-let magChart,selectedEvent=null,forecastZones=JSON.parse(localStorage.getItem('gs_forecast_v3')||'[]');
-
-function peTime(ms){return new Date(ms).toLocaleString('es-PE',{timeZone:'America/Lima'})}
-function peClock(ms=Date.now()){return new Date(ms).toLocaleTimeString('es-PE',{timeZone:'America/Lima',hour:'2-digit',minute:'2-digit',second:'2-digit'})}
-function inPeru(f){const [lon,lat]=f.geometry?.coordinates||[];return Number.isFinite(lat)&&lat>=PERU.minLat&&lat<=PERU.maxLat&&Number.isFinite(lon)&&lon>=PERU.minLon&&lon<=PERU.maxLon}
-function hav(lat1,lon1,lat2,lon2){const R=6371,d2r=Math.PI/180,dlat=(lat2-lat1)*d2r,dlon=(lon2-lon1)*d2r,a=Math.sin(dlat/2)**2+Math.cos(lat1*d2r)*Math.cos(lat2*d2r)*Math.sin(dlon/2)**2;return 2*R*Math.asin(Math.sqrt(a))}
-function magColor(m){return m>=6.5?'#8a153d':m>=5?'#e64b25':m>=4.5?'#ef8a1d':m>=3?'#e3c92c':'#48a969'}
-function persistHours(m){return m<5?5:m<6.5?24:168}
-function depthOK(d){const v=$('depthSelect').value;return v==='all'||(v==='shallow'&&d<70)||(v==='mid'&&d>=70&&d<=300)||(v==='deep'&&d>300)}
-function saveSeen(){try{localStorage.setItem('gs_seen_v3',JSON.stringify([...seen].slice(-600)))}catch(e){}}
-function esc(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
-function sourceLink(url,label){return `<a class="source-link" href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`}
-
+const IGP_SOIL='https://ide.igp.gob.pe/arcgis/rest/services/cienciastierrasolida/EstudiosZonificacion/MapServer';
+const INGEMMET_WMS='https://geocatmin.ingemmet.gob.pe/arcgis/services/SERV_GEOLOGIA/MapServer/WMSServer';
+const peFmt=new Intl.DateTimeFormat('es-PE',{timeZone:'America/Lima',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+const clockFmt=new Intl.DateTimeFormat('es-PE',{timeZone:'America/Lima',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+let maps={},quakeLayer,histLayer,forecastHeat,forecastZones,riskWms,soilLayer;
+let igp=[],usgs=[],catalog=[],mapWindow=24,initialized=false,seen=new Set(JSON.parse(localStorage.getItem('gsl5_seen')||'[]'));
+let sound=false,audioCtx=null,forecastHours=24,forecastTimer=0,adminLayers={},boundsData={};
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const pe=t=>{try{return peFmt.format(new Date(t))}catch{return'—'}};
+const color=m=>m>=6?'#df3e3e':m>=4.5?'#f2a51a':'#35a769';
+async function get(url,timeout=12000){const c=new AbortController(),to=setTimeout(()=>c.abort(),timeout);try{const r=await fetch(url,{cache:'no-store',signal:c.signal});if(!r.ok)throw Error(String(r.status));return await r.json()}finally{clearTimeout(to)}}
+function inPeru(f){const [x,y]=f.geometry.coordinates;return y>=PERU.minLat&&y<=PERU.maxLat&&x>=PERU.minLon&&x<=PERU.maxLon}
+function hav(a,b,c,d){const R=6371,p=Math.PI/180,da=(c-a)*p,db=(d-b)*p,A=Math.sin(da/2)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin(db/2)**2;return 2*R*Math.asin(Math.sqrt(A))}
+function parseIGPTime(p){
+  const raw=p.fechaevento??p.fecha;
+  if(typeof raw==='number'&&raw>1e11){
+    let d=new Date(raw), y=d.getUTCFullYear(),m=String(d.getUTCMonth()+1).padStart(2,'0'),day=String(d.getUTCDate()).padStart(2,'0'),h=String(p.hora||'00:00:00').trim();
+    if(/^\d{1,2}:\d{2}/.test(h)){let [hh,mm,ss='00']=h.split(':');let t=Date.parse(`${y}-${m}-${day}T${String(hh).padStart(2,'0')}:${mm}:${ss}-05:00`);if(Number.isFinite(t))return t}
+    return raw;
+  }
+  if(typeof raw==='string'){const t=Date.parse(raw);if(Number.isFinite(t))return t}
+  return 0;
+}
+function normIGP(j){
+  return (j?.features||[]).map((f,i)=>{
+    const p=f.properties||f.attributes||{},g=f.geometry||{},c=Array.isArray(g.coordinates)?g.coordinates:[g.x??p.lon,g.y??p.lat],t=parseIGPTime(p);
+    const mag=Number(p.magnitud??p.mag??0),depth=Number(p.prof??0);
+    return {type:'Feature',id:`IGP-${p.code||p.objectid||i}-${t}`,geometry:{type:'Point',coordinates:[Number(c[0]),Number(c[1]),depth]},properties:{source:'IGP',mag,time:t,place:p.ref||p.departamento||'Perú',department:p.departamento||'',intensity:p.int_||'',code:p.code||'',url:p.reporte?`https://ultimosismo.igp.gob.pe/evento/${p.code||''}`:'https://ultimosismo.igp.gob.pe/'}};
+  }).filter(f=>Number.isFinite(f.geometry.coordinates[0])&&Number.isFinite(f.geometry.coordinates[1])&&f.properties.time);
+}
+function normUSGS(j){return (j?.features||[]).filter(inPeru).map(f=>{const c=f.geometry.coordinates,p=f.properties;return {type:'Feature',id:'USGS-'+f.id,geometry:{type:'Point',coordinates:[+c[0],+c[1],+c[2]||0]},properties:{source:'USGS',mag:+p.mag||0,time:+p.time||0,place:p.place||'Perú',magType:p.magType||'',url:p.url||'https://earthquake.usgs.gov/'}}})}
+async function fetchIGP(){
+  const q=new URLSearchParams({where:'1=1',outFields:'*',returnGeometry:'true',outSR:'4326',orderByFields:'fechaevento DESC',resultRecordCount:'2000',f:'geojson'});
+  try{return normIGP(await get(`${IGP}?${q}`))}
+  catch(e){
+    const q2=new URLSearchParams({where:'1=1',outFields:'*',returnGeometry:'true',outSR:'4326',orderByFields:'fechaevento DESC',resultRecordCount:'2000',f:'json'});
+    return normIGP(await get(`${IGP}?${q2}`));
+  }
+}
+function merge(){
+  const used=new Set(),out=[];
+  for(const a of [...igp].sort((x,y)=>y.properties.time-x.properties.time)){
+    let best=-1,bd=1e9;
+    usgs.forEach((b,i)=>{if(used.has(i))return;const dt=Math.abs(a.properties.time-b.properties.time)/1000,d=hav(a.geometry.coordinates[1],a.geometry.coordinates[0],b.geometry.coordinates[1],b.geometry.coordinates[0]);if(dt<180&&d<80&&d<bd){best=i;bd=d}});
+    if(best>=0){const b=usgs[best];used.add(best);out.push({...a,properties:{...a.properties,source:'IGP+USGS',usgsMag:b.properties.mag,usgsUrl:b.properties.url,usgsMagType:b.properties.magType}})} else out.push(a)
+  }
+  usgs.forEach((b,i)=>{if(!used.has(i))out.push(b)});
+  catalog=out.sort((a,b)=>b.properties.time-a.properties.time);
+}
+function icon(f,last=false){const m=+f.properties.mag||0,s=Math.max(24,Math.min(42,22+m*2.2));return L.divIcon({className:`gsl ${last?'latest':''}`,html:`<div class="p" style="width:${s}px;height:${s}px;background:${color(m)}">M${m.toFixed(1)}</div>`,iconSize:[s,s],iconAnchor:[s/2,s/2]})}
+function popup(f){const p=f.properties,[x,y,d=0]=f.geometry.coordinates;return `<div class="popup"><div class="pt" style="border-left-color:${color(p.mag)}"><b>M ${(+p.mag||0).toFixed(1)}</b><span>${esc(p.source==='IGP+USGS'?'IGP + USGS':p.source==='IGP'?'IGP/CENSIS':'USGS')}</span></div><div class="place">${esc(p.place||'Perú')}</div><div class="pg"><span>Fecha / hora Perú</span><b>${pe(p.time)}</b><span>Profundidad</span><b>${(+d).toFixed(0)} km</b><span>Coordenadas</span><b>${y.toFixed(3)}, ${x.toFixed(3)}</b>${p.intensity?`<span>Intensidad IGP</span><b>${esc(p.intensity)}</b>`:''}${p.code?`<span>Código IGP</span><b>${esc(p.code)}</b>`:''}${p.usgsMag?`<span>USGS</span><b>M ${(+p.usgsMag).toFixed(1)} ${esc(p.usgsMagType||'')}</b>`:''}</div><div class="pa">${p.source!=='USGS'?`<a target="_blank" href="${esc(p.url)}">IGP ↗</a>`:''}${p.usgsUrl||p.source==='USGS'?`<a target="_blank" href="${esc(p.usgsUrl||p.url)}">USGS ↗</a>`:''}</div></div>`}
+function mkMap(id){const m=L.map(id,{minZoom:4,maxZoom:18,zoomControl:true}).setView([-9.3,-75.1],5);m._img=L.tileLayer(IMG,{maxZoom:18,attribution:'Esri'}).addTo(m);m._labels=L.tileLayer(LABEL,{subdomains:'abcd',maxZoom:20,opacity:.95}).addTo(m);return m}
+async function initMapData(){
+  try{boundsData.dep=await get(DEP);adminLayers.dep=L.geoJSON(boundsData.dep,{style:{color:'#f2da75',weight:1.1,fillOpacity:0},interactive:false}).addTo(maps.map)}catch{}
+  try{boundsData.prov=await get(PROV);adminLayers.prov=L.geoJSON(boundsData.prov,{style:{color:'#d5e2e9',weight:.45,fillOpacity:0},interactive:false}).addTo(maps.map)}catch{}
+}
+async function ensureDistrict(){if(adminLayers.dist)return;try{boundsData.dist=await get(DIST);adminLayers.dist=L.geoJSON(boundsData.dist,{style:{color:'#c8d7df',weight:.3,fillOpacity:0},interactive:false}).addTo(maps.map)}catch{}}
 function initMaps(){
- actualMap=L.map('actualMap',{minZoom:4,maxZoom:18}).setView([-9.2,-75.2],5);
- forecastMap=L.map('forecastMap',{minZoom:4,maxZoom:18}).setView([-9.2,-75.2],5);
- imgA=L.tileLayer(ESRI_IMG,{maxZoom:18,attribution:'Tiles © Esri'}).addTo(actualMap);
- imgF=L.tileLayer(ESRI_IMG,{maxZoom:18,attribution:'Tiles © Esri'}).addTo(forecastMap);
- streetA=L.tileLayer(ESRI_STREET,{maxZoom:18,attribution:'Tiles © Esri'});
- streetF=L.tileLayer(ESRI_STREET,{maxZoom:18,attribution:'Tiles © Esri'});
- labelsA=L.tileLayer(ESRI_LABEL,{maxZoom:18,attribution:'Boundaries & Places © Esri'}).addTo(actualMap);
- labelsF=L.tileLayer(ESRI_LABEL,{maxZoom:18,attribution:'Boundaries & Places © Esri'}).addTo(forecastMap);
- quakeLayer=L.layerGroup().addTo(actualMap);forecastLayer=L.layerGroup().addTo(forecastMap);
- loadBorders();renderForecast();
+  maps.map=mkMap('map');quakeLayer=L.layerGroup().addTo(maps.map);
+  maps.historyMap=mkMap('historyMap');histLayer=L.layerGroup().addTo(maps.historyMap);
+  maps.forecastMap=mkMap('forecastMap');forecastZones=L.layerGroup().addTo(maps.forecastMap);
+  maps.rainMap=mkMap('rainMap');
+  maps.riskMap=mkMap('riskMap');
+  maps.soilMap=mkMap('soilMap');
+  Object.values(maps).forEach(m=>m.fitBounds([[-20.5,-82.5],[-2,-68]],{padding:[8,8]}));
+  initMapData();
+  try{
+    soilLayer=L.esri.dynamicMapLayer({url:IGP_SOIL,layers:[9],opacity:.72,useCors:true}).addTo(maps.soilMap);
+  }catch(e){}
 }
-async function loadBorders(){for(const [k,u] of Object.entries({dep:DEP,prov:PROV})){try{geo[k]=await (await fetch(u)).json();drawBorder(k)}catch(e){console.warn('border',k,e)}}}
-async function ensureDist(){if(!geo.dist){try{geo.dist=await (await fetch(DIST)).json();drawBorder('dist')}catch(e){console.warn(e)}}}
-function drawBorder(k){const st={dep:{color:'#ffd21f',weight:1.6,fillOpacity:0},prov:{color:'#fff',weight:.65,opacity:.7,fillOpacity:0},dist:{color:'#5ee3ff',weight:.4,opacity:.5,fillOpacity:0}}[k];[actualMap,forecastMap].forEach(m=>{const l=L.geoJSON(geo[k],{style:st}).addTo(m);borders[k].push([m,l])})}
-function toggleBorder(k,on){borders[k].forEach(([m,l])=>on?(!m.hasLayer(l)&&l.addTo(m)):(m.hasLayer(l)&&m.removeLayer(l)))}
-
-async function fetchJSON(url){const r=await fetch(url+(url.includes('?')?'&':'?')+'_='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error(`${r.status} ${r.statusText}`);return r.json()}
-function normalizeIGP(gj){return (gj.features||[]).map((f,i)=>{const p=f.properties||{},c=f.geometry?.coordinates||[p.lon,p.lat];let t=Number(p.fecha||p.fechaevento);if(!Number.isFinite(t))t=Date.now();return {type:'Feature',id:'igp-'+(p.code||p.reporte||i)+'-'+t,geometry:{type:'Point',coordinates:[+c[0],+c[1],+(p.prof||0)]},properties:{mag:+(p.magnitud||p.mag||0),place:p.ref||p.departamento||'Perú',time:t,status:'reviewed',magType:'IGP',url:'https://ultimosismo.igp.gob.pe/ultimo-sismo',source:'IGP',intensity:p.int_||'',code:p.code||'',department:p.departamento||''}}}).filter(f=>Number.isFinite(f.geometry.coordinates[0])&&Number.isFinite(f.geometry.coordinates[1]))}
-function matchIGP(usgs){if(!inPeru(usgs)||!igpData.length)return null;const [lon,lat]=usgs.geometry.coordinates,t=usgs.properties.time;let best=null,score=1e9;for(const i of igpData){const dt=Math.abs(t-i.properties.time)/1000,d=hav(lat,lon,i.geometry.coordinates[1],i.geometry.coordinates[0]),s=dt/90+d/50;if(dt<600&&d<120&&s<score){score=s;best=i}}return best}
-
+function currentEvents(){const cut=Date.now()-mapWindow*3600000,min=+$('minMag').value;return catalog.filter(f=>f.properties.time>=cut&&(+f.properties.mag||0)>=min)}
+function renderMonitor(){
+  const d=currentEvents();quakeLayer.clearLayers();
+  d.forEach((f,i)=>{const c=f.geometry.coordinates;L.marker([c[1],c[0]],{icon:icon(f,i===0)}).bindPopup(popup(f),{maxWidth:350}).addTo(quakeLayer)});
+  $('count').textContent=d.length;
+  $('recentList').innerHTML=d.slice(0,14).map((f,i)=>{const p=f.properties;return `<div class="quake-item" data-q="${i}"><div class="m" style="background:${color(p.mag)}">M ${(+p.mag||0).toFixed(1)}</div><div class="where"><b>${esc(p.place)}</b><small>${p.source==='IGP'?'IGP/CENSIS':p.source==='IGP+USGS'?'IGP + USGS':'USGS'}</small></div><time>${new Intl.DateTimeFormat('es-PE',{timeZone:'America/Lima',hour:'2-digit',minute:'2-digit'}).format(new Date(p.time))}</time></div>`}).join('')||'<div class="loading">No hay eventos visibles con este filtro.</div>';
+  document.querySelectorAll('[data-q]').forEach(x=>x.onclick=()=>{const f=d[+x.dataset.q],c=f.geometry.coordinates;maps.map.flyTo([c[1],c[0]],8);L.popup().setLatLng([c[1],c[0]]).setContent(popup(f)).openOn(maps.map)});
+  renderLatest();
+}
+function renderLatest(){const f=[...igp].sort((a,b)=>b.properties.time-a.properties.time)[0]||catalog[0];if(!f)return;const p=f.properties,[x,y,d=0]=f.geometry.coordinates;$('latestMag').textContent=`M ${(+p.mag||0).toFixed(1)}`;$('latestMag').style.color=color(p.mag);$('latestPlace').textContent=p.place||'Perú';$('latestTime').textContent=pe(p.time);$('latestDepth').textContent=`${(+d).toFixed(0)} km`;$('latestIntensity').textContent=p.intensity||'—';$('latestCoords').textContent=`${y.toFixed(2)}, ${x.toFixed(2)}`;$('latestCode').textContent=p.code||'—';$('latestLink').href=p.url||'https://ultimosismo.igp.gob.pe/'}
+function renderHistory(){
+  const days=$('histDays').value,src=$('histSource').value,min=+$('histMag').value,q=$('histSearch').value.toLowerCase();let d=[...catalog];
+  if(days!=='all')d=d.filter(f=>f.properties.time>=Date.now()-(+days)*86400000);
+  if(src!=='all')d=d.filter(f=>f.properties.source.includes(src));
+  d=d.filter(f=>(+f.properties.mag||0)>=min&&(!q||(f.properties.place||'').toLowerCase().includes(q)||(f.properties.code||'').toLowerCase().includes(q)));
+  histLayer.clearLayers();d.slice(0,1000).forEach(f=>{const c=f.geometry.coordinates;L.marker([c[1],c[0]],{icon:icon(f)}).bindPopup(popup(f)).addTo(histLayer)});
+  $('histRows').innerHTML=d.slice(0,1000).map(f=>{const p=f.properties,z=f.geometry.coordinates[2]||0;return `<tr><td>${pe(p.time)}</td><td>${esc(p.source)}</td><td><b style="color:${color(p.mag)}">M ${(+p.mag||0).toFixed(1)}</b></td><td>${(+z).toFixed(0)} km</td><td>${esc(p.place)}</td><td><a target="_blank" href="${esc(p.url||p.usgsUrl||'#')}">Abrir ↗</a></td></tr>`}).join('')||'<tr><td colspan="6">Sin eventos.</td></tr>';
+}
+function playAlert(){
+  if(!sound)return;
+  if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+  const start=audioCtx.currentTime;
+  for(let i=0;i<14;i++){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.value=i%2?740:520;g.gain.setValueAtTime(.0001,start+i*.5);g.gain.exponentialRampToValueAtTime(.18,start+i*.5+.03);g.gain.exponentialRampToValueAtTime(.0001,start+i*.5+.42);o.connect(g).connect(audioCtx.destination);o.start(start+i*.5);o.stop(start+i*.5+.45)}
+}
+function alertNew(){
+  const fresh=catalog.filter(f=>Date.now()-f.properties.time<20*60*1000);
+  if(!initialized){fresh.forEach(f=>seen.add(f.id));initialized=true;return}
+  const n=fresh.find(f=>!seen.has(f.id));fresh.forEach(f=>seen.add(f.id));localStorage.setItem('gsl5_seen',JSON.stringify([...seen].slice(-800)));
+  if(n){$('alertState').textContent=`NUEVO SISMO M ${(+n.properties.mag||0).toFixed(1)}`;$('alertState').style.background='#9c272a';playAlert();const c=n.geometry.coordinates;maps.map.flyTo([c[1],c[0]],8);setTimeout(()=>{$('alertState').textContent='SIN ALERTAS';$('alertState').style.background=''},12000)}
+}
 async function poll(){
- $('monitorState').textContent='ACTUALIZANDO';$('liveStatus').textContent='Actualizando…';
- try{
-  const [h,d,il,ir]=await Promise.allSettled([fetchJSON(USGS_HOUR),fetchJSON(USGS_DAY),fetchJSON(IGP_LAST),fetchJSON(IGP_RECENT)]);
-  if(h.status==='fulfilled'){hourData=h.value.features||[];$('usgsState').textContent='CONECTADO'}else $('usgsState').textContent='ERROR';
-  if(d.status==='fulfilled')dayData=d.value.features||[];
-  const igpRaw=ir.status==='fulfilled'?ir.value:(il.status==='fulfilled'?il.value:null);
-  if(igpRaw){igpData=normalizeIGP(igpRaw);$('igpState').textContent='CONECTADO'}else $('igpState').textContent='NO DISPONIBLE';
-  detectNewEvents();updateVisible();$('lastPoll').textContent=peClock();$('lastUpdate').textContent=peClock();$('liveStatus').textContent='Actualización automática';$('statusDot').className='ok';$('monitorState').textContent='EN VIVO';
- }catch(e){console.error(e);$('monitorState').textContent='CON ERROR';$('statusDot').className='bad'}
- pollRemain=60;
+  $('lastPoll').textContent='Consultando…';
+  const results=await Promise.allSettled([fetchIGP(),get(USGS_DAY)]);
+  if(results[0].status==='fulfilled'){igp=results[0].value;$('igpStatus').textContent='IGP CONECTADO';$('igpHealth').textContent='Operativo'}else{$('igpStatus').textContent='IGP SIN RESPUESTA';$('igpHealth').textContent='Sin respuesta'}
+  if(results[1].status==='fulfilled'){usgs=normUSGS(results[1].value);$('usgsStatus').textContent='USGS CONECTADO';$('usgsHealth').textContent='Operativo'}else{$('usgsStatus').textContent='USGS SIN RESPUESTA';$('usgsHealth').textContent='Sin respuesta'}
+  merge();renderMonitor();alertNew();$('lastPoll').textContent=clockFmt.format(new Date());$('updated').textContent='Actualizado: '+pe(Date.now());
+  if(Date.now()-forecastTimer>30*60*1000){renderForecast();forecastTimer=Date.now()}
 }
-function detectNewEvents(){const now=Date.now(),candidates=[...hourData].filter(inPeru).sort((a,b)=>a.properties.time-b.properties.time);for(const f of candidates){const id=f.id||`${f.properties.time}-${f.geometry.coordinates[0]}-${f.geometry.coordinates[1]}`;if(now-f.properties.time<20*60*1000&&!seen.has(id)){seen.add(id);saveSeen();triggerAlert(f)}}}
-function triggerAlert(f){const m=f.properties.mag??0,d=f.geometry.coordinates[2]??0;$('tickerText').textContent=`NUEVO SISMO REPORTADO · M ${m.toFixed(1)} ${f.properties.magType||''} · ${f.properties.place||'Perú'} · ${d.toFixed(0)} km · ${peTime(f.properties.time)}`;if(audioEnabled)playAlarm5s();showEvent(f);actualMap.flyTo([f.geometry.coordinates[1],f.geometry.coordinates[0]],Math.max(actualMap.getZoom(),7))}
-function playAlarm5s(){try{audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();const start=audioCtx.currentTime,end=start+5;for(let t=start;t<end;t+=.55){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';o.frequency.setValueAtTime(820,t);o.frequency.setValueAtTime(1040,t+.18);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.18,t+.03);g.gain.exponentialRampToValueAtTime(.0001,t+.35);o.connect(g);g.connect(audioCtx.destination);o.start(t);o.stop(t+.4)}}catch(e){}}
-function updateVisible(){const now=Date.now(),min=+$('minMag').value;visibleEvents=dayData.filter(f=>inPeru(f)&&(f.properties.mag??0)>=min&&depthOK(f.geometry.coordinates[2]??0)&&now-f.properties.time<=persistHours(f.properties.mag??0)*3600000);const ids=new Set(visibleEvents.map(f=>f.id));hourData.filter(inPeru).forEach(f=>{if(!ids.has(f.id)&&(f.properties.mag??0)>=min&&depthOK(f.geometry.coordinates[2]??0))visibleEvents.push(f)});visibleEvents.sort((a,b)=>b.properties.time-a.properties.time);renderQuakes();renderTable();renderStats()}
-function renderQuakes(){quakeLayer.clearLayers();if(!$('quakeToggle').checked)return;visibleEvents.forEach((f,idx)=>{const [lon,lat,d]=f.geometry.coordinates,m=f.properties.mag??0;const mk=L.circleMarker([lat,lon],{radius:Math.max(5,m*1.6),color:'#fff',weight:1,fillColor:magColor(m),fillOpacity:.92,className:idx===0?'pulse-marker':''});mk.bindTooltip(`M ${m.toFixed(1)} · ${d.toFixed(0)} km<br>${esc(f.properties.place||'Perú')}`);mk.on('click',()=>showEvent(f));mk.addTo(quakeLayer)})}
-function showEvent(f){selectedEvent=f;const [lon,lat,d]=f.geometry.coordinates,m=f.properties.mag??0,igp=matchIGP(f);$('reportStatus').textContent=(f.properties.status||'automatic').toUpperCase();$('reportBody').innerHTML=`<div class="report-card"><div class="headline">M ${m.toFixed(1)} ${esc(f.properties.magType||'')} · SISMO REPORTADO</div><div class="metric"><span>Referencia USGS</span><b>${esc(f.properties.place||'Perú')}</b></div><div class="metric"><span>Hora Perú</span><b>${peTime(f.properties.time)}</b></div><div class="metric"><span>Profundidad</span><b>${d.toFixed(0)} km</b></div><div class="metric"><span>Coordenadas</span><b>${lat.toFixed(3)}, ${lon.toFixed(3)}</b></div>${igp?`<div class="metric"><span>IGP/CENSIS asociado</span><b>M ${(igp.properties.mag||0).toFixed(1)} · ${esc(igp.properties.place)}</b></div>${igp.properties.intensity?`<div class="metric"><span>Intensidad IGP</span><b>${esc(igp.properties.intensity)}</b></div>`:''}`:'<div class="metric"><span>IGP/CENSIS</span><b>Esperando/No asociado aún</b></div>'}<div class="source-actions">${sourceLink(f.properties.url||'https://earthquake.usgs.gov/','USGS')}${sourceLink('https://ultimosismo.igp.gob.pe/ultimo-sismo','IGP/CENSIS')}</div><div class="report-note">IGP/CENSIS es la fuente oficial peruana. GeoSismosLatam mantiene separada la procedencia de cada parámetro.</div></div>`}
-function renderTable(){$('eventCount').textContent=visibleEvents.length;$('quakeTable').innerHTML=visibleEvents.slice(0,80).map(f=>{const d=f.geometry.coordinates[2]??0,m=f.properties.mag??0;return `<tr><td>${peClock(f.properties.time)}</td><td><b style="color:${magColor(m)}">M ${m.toFixed(1)}</b></td><td>${d.toFixed(0)} km</td><td>${esc(f.properties.place||'Perú')}</td></tr>`}).join('');[...$('quakeTable').querySelectorAll('tr')].forEach((tr,i)=>tr.onclick=()=>{const f=visibleEvents[i];actualMap.flyTo([f.geometry.coordinates[1],f.geometry.coordinates[0]],8);showEvent(f)})}
-function renderStats(){const now=Date.now(),cw=h=>visibleEvents.filter(f=>now-f.properties.time<=h*3600000).length;$('q1').textContent=cw(1);$('q5').textContent=cw(5);$('q24').textContent=cw(24);$('qmax').textContent=visibleEvents.length?'M '+Math.max(...visibleEvents.map(f=>f.properties.mag||0)).toFixed(1):'—';const bins=[0,0,0];visibleEvents.forEach(f=>{const m=f.properties.mag||0;if(m<4.5)bins[0]++;else if(m<6.5)bins[1]++;else bins[2]++});if(magChart)magChart.destroy();magChart=new Chart($('magChart'),{type:'bar',data:{labels:['1–4.4','4.5–6.4','≥6.5'],datasets:[{data:bins,backgroundColor:['#53a96b','#ed951d','#8a153d']}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}},responsive:true}})}
-
-function forecastColor(m){return m>=6.5?'#8a153d':m>=4.5?'#ef8a1d':'#63a85e'}
-function eventWeight(f,lat,lon,h){const [x,y,z=0]=f.geometry.coordinates,m=Math.max(0,f.properties.mag||0),ageH=(Date.now()-f.properties.time)/3600000;if(ageH<0)return 0;const dist=hav(lat,lon,y,x),time=Math.exp(-ageH/Math.max(24,h/2)),space=Math.exp(-dist/420),mw=Math.pow(10,.34*Math.max(0,m-3)),depth=z<70?1.08:z<300?.9:.68;return time*space*mw*depth}
-function estimateMag(events,lat,lon){let num=0,den=0,max=1;for(const f of events){const d=hav(lat,lon,f.geometry.coordinates[1],f.geometry.coordinates[0]);if(d>900)continue;const w=Math.exp(-d/350)*Math.exp(-(Date.now()-f.properties.time)/86400000/18),m=f.properties.mag||0;num+=w*m;den+=w;max=Math.max(max,m)}const base=den?num/den:3.2;return Math.max(1,Math.min(8.5,base*.72+max*.28))}
-async function recalcForecast(){
- $('forecastUpdated').textContent='Calculando…';
- try{
-  const [g,d]=await Promise.allSettled([fetchJSON(USGS_MONTH45),fetchJSON(USGS_DAY)]);if(g.status==='fulfilled')global45=g.value.features||[];
-  const day=(d.status==='fulfilled'?d.value.features||[]:dayData),regional=day.filter(f=>{const [lon,lat]=f.geometry.coordinates;return lat>=-60&&lat<=30&&lon>=-130&&lon<=-55}),local=day.filter(f=>{const [lon,lat]=f.geometry.coordinates;return lat>=-30&&lat<=8&&lon>=-95&&lon<=-60});
-  const all=[...regional,...global45.filter(f=>{const [lon,lat]=f.geometry.coordinates;return lat>=-65&&lat<=40&&lon>=-150&&lon<=-40})],h=+$('forecastHorizon').value,step=.85,newZones=[];
-  for(let lat=-19.9;lat<=-.5;lat+=step){for(let lon=-81.8;lon<=-68.8;lon+=step){if((lon<-80.8&&lat>-5)||(lon>-69.2&&lat<-17.5))continue;let score=0;for(const f of all)score+=eventWeight(f,lat,lon,h);for(const f of igpData)score+=1.15*eventWeight(f,lat,lon,h);newZones.push({id:`${lat.toFixed(2)}_${lon.toFixed(2)}`,lat,lon,score,mag:estimateMag([...local,...igpData],lat,lon),persist:0})}}
-  const mx=Math.max(...newZones.map(z=>z.score),1e-9),old=new Map(forecastZones.map(z=>[z.id,z]));forecastZones=newZones.map(z=>{const o=old.get(z.id),rel=z.score/mx,smoothed=o?(.58*(o.rel||0)+.42*rel):rel,persist=smoothed>.28?(o?.persist||0)+1:Math.max(0,(o?.persist||0)-1);return {...z,rel:smoothed,persist,trend:o?(smoothed>(o.rel||0)+.03?'↑':smoothed<(o.rel||0)-.03?'↓':'→'):'NUEVA'}}).filter(z=>z.rel>.18||z.persist>0);
-  localStorage.setItem('gs_forecast_v3',JSON.stringify(forecastZones));$('worldUsed').textContent=global45.length;$('regionUsed').textContent=local.length+igpData.length;$('zoneCount').textContent=forecastZones.filter(z=>z.rel>.28).length;$('forecastUpdated').textContent=peClock();forecastRemain=30*60;renderForecast();
- }catch(e){console.error('forecast',e);$('forecastUpdated').textContent='Error de cálculo'}
+function localScore(events,lat,lon,h){
+  let s=0,near=[];
+  for(const f of events){const c=f.geometry.coordinates,m=Math.max(1,+f.properties.mag||0),age=(Date.now()-f.properties.time)/3600000;if(age<0||age>h*3)continue;const d=hav(lat,lon,c[1],c[0]);const temporal=Math.pow(age+2,-1.05),spatial=Math.exp(-d/90),product=Math.pow(10,.32*Math.max(0,m-3));const w=temporal*spatial*product;s+=w;if(d<120)near.push(m)}
+  return {s,near}
 }
-function renderForecast(){if(!forecastLayer)return;forecastLayer.clearLayers();const active=forecastZones.filter(z=>z.rel>.22).sort((a,b)=>a.rel-b.rel);active.forEach(z=>{const col=forecastColor(z.mag),opacity=Math.min(.72,.10+z.rel*.58),step=.85,rect=L.rectangle([[z.lat-step/2,z.lon-step/2],[z.lat+step/2,z.lon+step/2]],{color:col,weight:.7,fillColor:col,fillOpacity:opacity});rect.on('click',()=>showForecast(z));rect.bindTooltip(`M ${Math.max(1,z.mag-.35).toFixed(1)}–${Math.min(10,z.mag+.45).toFixed(1)} · ${(z.rel*100).toFixed(0)}% rel.`,{sticky:true});rect.addTo(forecastLayer);if(z.rel>.58)L.marker([z.lat,z.lon],{icon:L.divIcon({className:'forecast-zone-label',html:`M ${z.mag.toFixed(1)}`,iconSize:[42,18]})}).addTo(forecastLayer)});$('zoneCount').textContent=active.length}
-function showForecast(z){const low=Math.max(1,z.mag-.35),high=Math.min(10,z.mag+.45);$('forecastDetail').innerHTML=`<div class="report-card"><div class="headline" style="background:${forecastColor(z.mag)}">ÁREA PROBABILÍSTICA</div><div class="metric"><span>Centro estadístico referencial</span><b>${z.lat.toFixed(2)}, ${z.lon.toFixed(2)}</b></div><div class="metric"><span>Magnitud característica modelada</span><b>M ${low.toFixed(1)} – ${high.toFixed(1)}</b></div><div class="metric"><span>Índice relativo</span><b>${(z.rel*100).toFixed(1)} / 100</b></div><div class="metric"><span>Tendencia</span><b>${z.trend}</b></div><div class="metric"><span>Persistencia</span><b>${z.persist} ciclos de 30 min</b></div><div class="metric"><span>Horizonte</span><b>${$('forecastHorizon').selectedOptions[0].textContent}</b></div><div class="report-note">Área referencial experimental. No indica un epicentro futuro ni certeza de ocurrencia. La magnitud mostrada es una característica estadística del modelo.</div></div>`}
-
-async function loadNews(){
- $('newsFeed').innerHTML='<div class="feed-loading">Buscando cobertura reciente…</div>';const events=[...dayData].filter(f=>(f.properties.mag||0)>=4.5).sort((a,b)=>b.properties.time-a.properties.time).slice(0,10),cards=[];
- for(const f of events){const m=f.properties.mag||0,place=f.properties.place||'Earthquake',q=encodeURIComponent(`earthquake "${place.split(',')[0]}"`);try{const u=`https://api.gdeltproject.org/api/v2/doc/doc?query=${q}&mode=ArtList&maxrecords=6&format=json&sort=HybridRel`,j=await fetchJSON(u);for(const a of (j.articles||[]).slice(0,4))cards.push({event:f,title:a.title||`Sismo M ${m.toFixed(1)}`,url:a.url||f.properties.url,image:a.socialimage||'',domain:a.domain||'Medio web',date:a.seendate||'',desc:`Cobertura relacionada con el sismo M ${m.toFixed(1)} reportado en ${place}. Verifique los detalles en la fuente original.`})}catch(e){}if(!cards.some(c=>c.event===f))cards.push({event:f,title:`Sismo M ${m.toFixed(1)} · ${place}`,url:f.properties.url,image:'',domain:'USGS',date:peTime(f.properties.time),desc:'Evento sísmico reportado. La cobertura periodística puede tardar algunos minutos en aparecer.'})}
- $('newsFeed').innerHTML=cards.length?cards.slice(0,35).map(c=>`<article class="news-card"><div class="news-meta"><b>M ${(c.event.properties.mag||0).toFixed(1)} · ${esc(c.event.properties.place||'')}</b><span>${esc(c.date||peTime(c.event.properties.time))}</span></div>${c.image?`<img class="news-img" loading="lazy" referrerpolicy="no-referrer" src="${esc(c.image)}" alt="">`:''}<div class="news-body"><h3>${esc(c.title)}</h3><p>${esc(c.desc)}</p><div class="news-actions"><span class="badge">${esc(c.domain)}</span><a target="_blank" rel="noopener noreferrer" href="${esc(c.url)}">VER FUENTE ORIGINAL ↗</a></div></div></article>`).join(''):'<div class="feed-loading">No se encontraron noticias asociadas todavía. Los eventos sísmicos continúan monitoreándose.</div>';
+function renderForecast(){
+  if(!maps.forecastMap||!catalog.length)return;const events=catalog.filter(f=>f.properties.time>=Date.now()-Math.max(forecastHours,720)*3600000);
+  const pts=[],cells=[];for(let lat=-19.5;lat<=-3;lat+=.45){for(let lon=-81.8;lon<=-69.3;lon+=.45){const r=localScore(events,lat,lon,forecastHours);if(r.s>0.0002)cells.push({lat,lon,score:r.s,near:r.near})}}
+  const max=Math.max(...cells.map(x=>x.score),.0001);cells.forEach(c=>pts.push([c.lat,c.lon,Math.min(1,c.score/max)]));
+  if(forecastHeat)maps.forecastMap.removeLayer(forecastHeat);forecastHeat=L.heatLayer(pts,{radius:28,blur:24,maxZoom:8,minOpacity:.12,gradient:{0.15:'#1e6fa5',0.35:'#2dac69',0.55:'#e4d233',0.75:'#f08a19',1:'#d52d2d'}}).addTo(maps.forecastMap);
+  forecastZones.clearLayers();const top=[...cells].sort((a,b)=>b.score-a.score).filter((c,i,a)=>a.slice(0,i).every(x=>hav(c.lat,c.lon,x.lat,x.lon)>150)).slice(0,4);
+  $('zoneCards').innerHTML=top.map((c,i)=>{const ratio=Math.round(c.score/max*100),ms=c.near.sort((a,b)=>a-b),lo=ms.length?ms[Math.floor(ms.length*.25)]:0,hi=ms.length?ms[Math.min(ms.length-1,Math.floor(ms.length*.8))]:0;return `<div class="zone" data-z="${i}"><div class="zonehead"><h4>Zona ${i+1}</h4><span class="level">${ratio>=75?'MUY ALTA':ratio>=50?'ALTA':ratio>=25?'MODERADA':'BAJA'}</span></div><p>Índice relativo: <b>${ratio}/100</b></p><p>Magnitud observada de referencia: <b>${lo?`M ${lo.toFixed(1)}–${hi.toFixed(1)}`:'—'}</b></p><p>Centro analítico: ${c.lat.toFixed(2)}, ${c.lon.toFixed(2)}</p></div>`}).join('')||'<div class="loading">Actividad insuficiente para destacar zonas.</div>';
+  top.forEach((c,i)=>L.circle([c.lat,c.lon],{radius:42000,color:'#fff',weight:1,fillColor:'#ff8a20',fillOpacity:.08,dashArray:'4,5'}).bindTooltip(`Zona ${i+1}`).addTo(forecastZones));
+  document.querySelectorAll('[data-z]').forEach(x=>x.onclick=()=>{const c=top[+x.dataset.z];maps.forecastMap.flyTo([c.lat,c.lon],7)});
+  $('projEvents').textContent=events.length;$('projTime').textContent=clockFmt.format(new Date());
 }
-function switchView(v){document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));$('view-'+v).classList.add('active');document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));setTimeout(()=>{if(v==='monitor')actualMap.invalidateSize();if(v==='forecast')forecastMap.invalidateSize()},120);if(v==='news')loadNews()}
-function bind(){document.querySelectorAll('.navbtn').forEach(b=>b.onclick=()=>switchView(b.dataset.view));$('audioBtn').onclick=async()=>{try{audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();await audioCtx.resume();audioEnabled=true;$('audioBtn').textContent='🔊 ALERTAS ACTIVAS';$('audioBtn').classList.add('on')}catch(e){}};$('refreshBtn').onclick=poll;$('minMag').oninput=e=>{$('minMagTxt').textContent='M ≥ '+(+e.target.value).toFixed(1);updateVisible()};$('depthSelect').onchange=updateVisible;$('quakeToggle').onchange=renderQuakes;$('satToggle').onchange=e=>{[[actualMap,imgA,streetA],[forecastMap,imgF,streetF]].forEach(([m,img,st])=>{if(e.target.checked){if(m.hasLayer(st))m.removeLayer(st);img.addTo(m)}else{if(m.hasLayer(img))m.removeLayer(img);st.addTo(m)}})};$('labelsToggle').onchange=e=>[[actualMap,labelsA],[forecastMap,labelsF]].forEach(([m,l])=>e.target.checked?l.addTo(m):m.removeLayer(l));$('depToggle').onchange=e=>toggleBorder('dep',e.target.checked);$('provToggle').onchange=e=>toggleBorder('prov',e.target.checked);$('distToggle').onchange=async e=>{if(e.target.checked)await ensureDist();toggleBorder('dist',e.target.checked)};$('forecastNow').onclick=recalcForecast;$('forecastHorizon').onchange=recalcForecast;$('newsRefresh').onclick=loadNews}
-function timers(){setInterval(()=>{pollRemain=Math.max(0,pollRemain-1);$('pollCountdown').textContent=pollRemain+' s';if(pollRemain===0)poll()},1000);setInterval(()=>{forecastRemain=Math.max(0,forecastRemain-1);const m=Math.floor(forecastRemain/60),s=forecastRemain%60;$('forecastCountdown').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;if(forecastRemain===0)recalcForecast()},1000)}
-async function boot(){initMaps();bind();timers();await poll();if(!forecastZones.length)await recalcForecast();else{renderForecast();$('forecastUpdated').textContent='Restaurado';setTimeout(recalcForecast,5000)}if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=3.0.0').catch(console.warn))}
-boot();
+function initRisk(){
+  try{riskWms=L.tileLayer.wms(INGEMMET_WMS,{layers:'0',format:'image/png',transparent:true,opacity:.58,attribution:'INGEMMET'}).addTo(maps.riskMap)}catch(e){}
+}
+function setSoilLayer(id){
+  try{if(soilLayer)maps.soilMap.removeLayer(soilLayer);soilLayer=L.esri.dynamicMapLayer({url:IGP_SOIL,layers:[+id],opacity:.72,useCors:true}).addTo(maps.soilMap)}catch(e){}
+}
+function showView(id){
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===id));document.querySelectorAll('.mainnav button').forEach(b=>b.classList.toggle('active',b.dataset.view===id));
+  setTimeout(()=>{if(maps[id+'Map'])maps[id+'Map'].invalidateSize();if(id==='monitor')maps.map.invalidateSize();if(id==='forecast'){maps.forecastMap.invalidateSize();renderForecast()}if(id==='risk'){maps.riskMap.invalidateSize();if(!riskWms)initRisk()}if(id==='soil')maps.soilMap.invalidateSize();if(id==='rain')maps.rainMap.invalidateSize()},120);
+}
+function bind(){
+  document.querySelectorAll('.mainnav button').forEach(b=>b.onclick=()=>showView(b.dataset.view));
+  $('soundBtn').onclick=async()=>{sound=!sound;if(sound&&!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();$('soundBtn').textContent=sound?'🔊 ALERTAS ACTIVAS':'🔇 ACTIVAR ALERTAS'};
+  document.querySelectorAll('[data-window]').forEach(b=>b.onclick=()=>{mapWindow=+b.dataset.window;document.querySelectorAll('[data-window]').forEach(x=>x.classList.toggle('active',x===b));renderMonitor()});
+  $('minMag').oninput=()=>{$('minMagVal').textContent=(+$('minMag').value).toFixed(1);renderMonitor()};
+  $('sat').onchange=e=>e.target.checked?maps.map._img.addTo(maps.map):maps.map.removeLayer(maps.map._img);
+  $('labels').onchange=e=>e.target.checked?maps.map._labels.addTo(maps.map):maps.map.removeLayer(maps.map._labels);
+  $('deps').onchange=e=>{if(adminLayers.dep)e.target.checked?adminLayers.dep.addTo(maps.map):maps.map.removeLayer(adminLayers.dep)};
+  $('provs').onchange=e=>{if(adminLayers.prov)e.target.checked?adminLayers.prov.addTo(maps.map):maps.map.removeLayer(adminLayers.prov)};
+  $('dists').onchange=async e=>{if(e.target.checked){await ensureDistrict();if(adminLayers.dist)adminLayers.dist.addTo(maps.map)}else if(adminLayers.dist)maps.map.removeLayer(adminLayers.dist)};
+  $('historyBtn').onclick=()=>{$('historyDrawer').classList.add('open');setTimeout(()=>maps.historyMap.invalidateSize(),120);renderHistory()};
+  $('closeHistory').onclick=()=>$('historyDrawer').classList.remove('open');$('runHistory').onclick=renderHistory;
+  document.querySelectorAll('#forecastRange button').forEach(b=>b.onclick=()=>{forecastHours=+b.dataset.h;document.querySelectorAll('#forecastRange button').forEach(x=>x.classList.toggle('active',x===b));renderForecast()});
+  document.querySelectorAll('.soil-tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.soil-tabs button').forEach(x=>x.classList.toggle('active',x===b));setSoilLayer(b.dataset.soil)});
+  $('riskOff').onclick=()=>{if(riskWms){maps.riskMap.removeLayer(riskWms);riskWms=null}};
+  $('riskMass').onclick=()=>{if(!riskWms)initRisk()};
+}
+function renderNews(){
+  $('newsFeed').innerHTML=[
+    ['IGP / CENSIS','Últimos sismos oficiales del Perú','Consulta la información oficial de los eventos sísmicos reportados por el Centro Sismológico Nacional.','https://ultimosismo.igp.gob.pe/'],
+    ['SENAMHI','Avisos meteorológicos nacionales','Revisa avisos preventivos, niveles de peligrosidad y pronósticos oficiales.','https://www.senamhi.gob.pe/?p=aviso-meteorologico'],
+    ['CENEPRED / SIGRID','Escenarios y estudios de riesgo','Mapas, evaluaciones y documentos técnicos para la gestión del riesgo de desastres.','https://sigrid4.cenepred.gob.pe/']
+  ].map(x=>`<article class="news-card"><span class="official-chip">${x[0]}</span><h3>${x[1]}</h3><p>${x[2]}</p><a target="_blank" rel="noopener" href="${x[3]}">ABRIR FUENTE OFICIAL ↗</a></article>`).join('');
+}
+function tick(){ $('clock').textContent=clockFmt.format(new Date()) }
+document.addEventListener('DOMContentLoaded',()=>{
+  initMaps();bind();renderNews();initRisk();tick();setInterval(tick,1000);poll();setInterval(poll,10000);
+  setTimeout(()=>renderForecast(),2500);
+});
