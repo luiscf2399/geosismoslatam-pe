@@ -13,6 +13,8 @@ const SEN_AUG='/api/wms/sen_aug';
 const SEN_NUM='/api/wms/sen_numeric';
 const SEN_24H='/api/wms/sen_24h';
 const SEN_Q='/api/wms/sen_quebradas';
+const NASA_GIBS='https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi';
+const NASA_IMERG_LAYER='IMERG_Precipitation_Rate_30min';
 const SEN_JJA_LAYER='g_03_02:03_02_001_03_000_512_0000_00_00';
 const SEN_AUG_LAYER='g_05_02:05_02_008_03_001_512_0000_00_00';
 const ING_MASS='/api/arcgis/risk_mass';
@@ -23,6 +25,7 @@ const peFmt=new Intl.DateTimeFormat('es-PE',{timeZone:'America/Lima',day:'2-digi
 const clockFmt=new Intl.DateTimeFormat('es-PE',{timeZone:'America/Lima',hour:'2-digit',minute:'2-digit',second:'2-digit'});
 let maps={},quakeLayer,histLayer,forecastHeat,forecastZones,riskWms,soilLayer,rainLayer,marineLayer,riskDistrictLayer,agriDistrictLayer;
 let igp=[],usgs=[],catalog=[],mapWindow=24,initialized=false,seen=new Set(JSON.parse(localStorage.getItem('gsl6_seen')||'[]'));
+let currentRainMode='now', sigridData=null, selectedSound=localStorage.getItem('gsl_sound')||'sirena_emergencia';
 let sound=false,audioCtx=null,forecastHours=24,forecastTimer=0,adminLayers={},boundsData={},historyCatalog=[],forecastCatalog=[],projectionMode='prob',selectedEventId=null,riskMode='hazards',emergencyData=null,enfenData=null,agriData=null,selectedAgriFeature=null;
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const pe=t=>{try{return peFmt.format(new Date(t))}catch{return'—'}};
@@ -121,6 +124,7 @@ function renderSelectedEvent(f){
   const usgsUrl=p.usgsUrl || (p.source==='USGS'?p.url:'');
   if(usgsUrl){usgs.href=usgsUrl;usgs.classList.remove('hidden')}else usgs.classList.add('hidden');
   const rr=rangeForMag(p.mag);
+  const mag=+p.mag||0;setContextLegend('monitor',{title:`Sismo seleccionado · M ${mag.toFixed(1)}`,source:p.source==='IGP'||p.source==='IGP+USGS'?'IGP/CENSIS':'USGS',intro:`El marcador usa ${mag>=6?'rojo para magnitudes altas':mag>=4.5?'naranja para magnitudes moderadas':'verde para eventos de menor magnitud'} dentro de la escala visual del portal. La magnitud no equivale por sí sola a daño o intensidad sentida.`,items:[[color(mag),'circle',`M ${mag.toFixed(1)}`,`Profundidad ${(+depth).toFixed(0)} km · ${p.place||'Perú'}`],['#ffffff','outline','Profundidad','La profundidad hipocentral ayuda a contextualizar el evento.'],['#2f9bd7','line','Fuente','Abra el reporte original para verificar parámetros oficiales.']]});
   document.querySelectorAll('.range-card').forEach(x=>x.classList.toggle('current',x.dataset.range===rr.key));
   $('detailRangeText').textContent=rr.label;
   $('detailCenterMap').onclick=()=>{
@@ -156,9 +160,7 @@ async function renderHistory(){
 }
 function playAlert(){
   if(!sound)return;
-  if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-  const start=audioCtx.currentTime;
-  for(let i=0;i<14;i++){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.value=i%2?740:520;g.gain.setValueAtTime(.0001,start+i*.5);g.gain.exponentialRampToValueAtTime(.18,start+i*.5+.03);g.gain.exponentialRampToValueAtTime(.0001,start+i*.5+.42);o.connect(g).connect(audioCtx.destination);o.start(start+i*.5);o.stop(start+i*.5+.45)}
+  try{if(nativeBridge())return;previewEarthquakeSound(selectedSound||'sirena_emergencia')}catch(e){}
 }
 function alertNew(){
   const fresh=catalog.filter(f=>Date.now()-f.properties.time<20*60*1000);
@@ -244,7 +246,7 @@ function renderForecast(){
     return `<div class="zone" data-z="${i}"><div class="zonehead"><h4>Zona ${i+1}</h4><span class="level">${ratio>=75?'MUY ALTO':ratio>=50?'ALTO':ratio>=25?'MODERADO':'BAJO'}</span></div><p>Índice relativo: <b>${ratio}/100</b></p><p>Tendencia semanal: <b>${trend}</b></p><p>Magnitud observada de referencia: <b>${lo?`M ${lo.toFixed(1)}–${hi.toFixed(1)}`:'—'}</b></p><p>Incertidumbre espacial orientativa: <b>±45–80 km</b></p></div>`;
   }).join('');
   top.forEach((c,i)=>L.circle([c.lat,c.lon],{radius:38000,color:'#dceaf2',weight:.7,fillColor:'#ff8a20',fillOpacity:.04,dashArray:'4,6'}).bindTooltip(`Zona ${i+1}`).addTo(forecastZones));
-  document.querySelectorAll('[data-z]').forEach(x=>x.onclick=()=>{const c=top[+x.dataset.z];maps.forecastMap.flyTo([c.lat,c.lon],7)});
+  document.querySelectorAll('[data-z]').forEach(x=>x.onclick=()=>{const c=top[+x.dataset.z],ratio=Math.round(c.score*100);maps.forecastMap.flyTo([c.lat,c.lon],7);setContextLegend('forecast',{title:`Zona probabilística · ${ratio}/100`,source:'Modelo GS-ENSEMBLE · experimental',intro:'El color indica concentración/tasa relativa dentro del modelo, no la certeza de que ocurrirá un sismo. Un valor mayor solo prioriza comparación estadística dentro del mismo cálculo.',items:[[ratio>=75?'#cc3b37':ratio>=50?'#ec8a28':ratio>=25?'#d5c83a':'#36a96b','circle',`Índice ${ratio}/100`,'Nivel relativo de esta zona dentro del cálculo actual.'],['#ffffff','outline','±45–80 km','Incertidumbre espacial orientativa del modelo.']]})});
   $('projEvents').textContent=events.length;
   $('projTime').textContent=clockFmt.format(new Date());
 }
@@ -268,46 +270,80 @@ async function discoverWms(base,keywords=[]){
 function clearRain(){
   if(rainLayer){try{maps.rainMap.removeLayer(rainLayer)}catch{} rainLayer=null}
 }
-async function loadRain(mode='jja'){
-  clearRain();
+async function loadCfsv2(horizon){
+  const img=$('cfsv2Image'),title=$('cfsv2Title'),text=$('cfsv2Text'),meta=$('cfsv2Meta');
+  if(!img)return;
+  if(!horizon){img.hidden=true;title.textContent='Seleccione 1–6 meses';meta.innerHTML='';return}
+  title.textContent=`NOAA CFSv2 · precipitación · +${horizon} mes${horizon>1?'es':''}`;
+  text.textContent='Anomalía mensual del modelo climático global CFSv2. Sirve como guía estacional y no predice una lluvia exacta en una fecha, punto o distrito.';
+  img.hidden=false;img.src=`/api/noaa/cfsv2/precip?horizon=${horizon}&t=${Math.floor(Date.now()/21600000)}`;
+  meta.innerHTML=`<span>Horizonte</span><b>+${horizon} mes${horizon>1?'es':''}</b><span>Producto</span><b>Anomalía de precipitación</b><span>Fuente</span><b>NOAA/NCEP CFSv2</b><span>Uso</span><b>Orientación estacional</b>`;
+}
+function rainExplanation(mode,latlng){
+  const where=latlng?` · ${latlng.lat.toFixed(3)}, ${latlng.lng.toFixed(3)}`:'';
+  const cfg={
+    now:['Precipitación reciente NASA IMERG','Tasa de precipitación satelital casi en tiempo real. IMERG Early Run tiene latencia; un color intenso representa mayor tasa en el producto, no una medición de pluviómetro en ese punto.','NASA GPM / IMERG','30 min · casi tiempo real'],
+    '1d':['Lluvia · 1 día','Producto de corto plazo. Se prioriza la capa oficial SENAMHI disponible; debe revisarse fecha de emisión, validez y leyenda original.','SENAMHI','24 horas'],
+    '7d':['Lluvia · 1 semana','Horizonte meteorológico de una semana. Se usa pronóstico numérico oficial disponible; la incertidumbre aumenta con los días.','SENAMHI + apoyo NASA/NOAA','7 días'],
+    quebradas:['Activación de quebradas','Aviso oficial de posibilidad de activación de quebradas. El nivel, vigencia y ámbito deben verificarse en la fuente oficial.','SENAMHI','Vigencia del aviso'],
+    off:['Sin capa temática','El mapa base permanece visible sin una capa de lluvia activa.','GeoSismosLatam','—']
+  };
+  if(/^[1-6]m$/.test(mode)){
+    const h=+mode[0];
+    return [`Proyección climática · +${h} mes${h>1?'es':''}`,`Guía estacional basada en NOAA CFSv2. Muestra anomalías/modelo climático a escala amplia; no significa que lloverá un día exacto ni que el valor sea válido como cálculo puntual de ingeniería.${where}`,'NOAA/NCEP CFSv2','Mensual / estacional'];
+  }
+  return cfg[mode]||cfg.now;
+}
+function updateRainInfo(mode,latlng=null){
+  const [title,desc,source,horizon]=rainExplanation(mode,latlng);
+  $('rainInfoTitle').textContent=title;
+  $('rainInfoText').textContent=desc;
+  $('rainInfoFacts').innerHTML=`<span>Fuente</span><b>${esc(source)}</b><span>Horizonte</span><b>${esc(horizon)}</b>${latlng?`<span>Punto consultado</span><b>${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}</b>`:''}<span>Interpretación</span><b>${/m$/.test(mode)?'Probabilística / climática':'Producto observado o pronosticado'}</b>`;
+}
+async function loadRain(mode='now'){
+  currentRainMode=mode;clearRain();updateRainInfo(mode);loadCfsv2(/^[1-6]m$/.test(mode)?+mode[0]:0);
   const title=$('rainLayerTitle'), legend=$('rainLegendText');
   try{
-    if(mode==='off'){setContextLegend('rain',{title:'Lluvias · sin capa temática',intro:'El mapa base permanece visible, pero no hay una capa meteorológica activa.'});title.textContent='Capas ocultas';legend.textContent='Seleccione una capa oficial para visualizarla.';setLayerStatus('rainStatus','Sin capa temática activa.',true);return}
-    if(mode==='jja'){
-      setContextLegend('rain',{title:'Lluvias · pronóstico estacional',source:'SENAMHI / IDESEP',intro:'Perspectiva climática estacional de precipitación. No representa lluvia observada en tiempo real.'});
-      rainLayer=L.tileLayer.wms(SEN_JJA,{layers:SEN_JJA_LAYER,format:'image/png',transparent:true,opacity:.68,version:'1.1.1',attribution:'SENAMHI · IDESEP'}).addTo(maps.rainMap);
-      title.textContent='SENAMHI · Pronóstico climático de precipitación JJA';if($('rainInfoTitle')){$('rainInfoTitle').textContent='Pronóstico climático estacional';$('rainInfoText').textContent='Representa una perspectiva climática estacional de precipitación. No equivale a lluvia observada en tiempo real.';$('rainInfoFacts').innerHTML='<span>Fuente</span><b>SENAMHI / IDESEP</b><span>Uso</span><b>Planificación preventiva</b>'};
-      legend.textContent='Pronóstico climático estacional JJA. No equivale a lluvia observada en tiempo real.';
-      setLayerStatus('rainStatus','SENAMHI: capa JJA solicitada al geoservicio oficial.',true); return;
+    if(mode==='off'){
+      setContextLegend('rain',{title:'Lluvias · sin capa temática',intro:'El mapa base permanece visible, pero no hay una capa meteorológica activa.'});
+      title.textContent='Capas ocultas';legend.textContent='Seleccione una capa para visualizarla.';setLayerStatus('rainStatus','Sin capa temática activa.',true);return;
     }
-    if(mode==='aug'){
-      rainLayer=L.tileLayer.wms(SEN_AUG,{layers:SEN_AUG_LAYER,format:'image/png',transparent:true,opacity:.65,version:'1.1.1',attribution:'SENAMHI · IDESEP'}).addTo(maps.rainMap);
-      title.textContent='SENAMHI · Caracterización climatológica de precipitación · agosto';
-      legend.textContent='Distribución climatológica de precipitación para agosto; sirve como referencia, no como monitoreo instantáneo.';
-      setLayerStatus('rainStatus','SENAMHI: climatología de agosto solicitada al geoservicio oficial.',true); return;
+    if(mode==='now'){
+      const d=new Date(Date.now()-4*3600e3).toISOString().slice(0,10);
+      setContextLegend('rain',{title:'Lluvias · NASA IMERG',source:'NASA GPM / IMERG',intro:'Precipitación estimada por satélite. La capa representa tasa de precipitación casi en tiempo real; no sustituye una estación meteorológica.',items:[['#5bc0eb','','Menor tasa','Tonos bajos de la escala del producto IMERG.'],['#f6c945','','Tasa intermedia','Mayor señal de precipitación estimada.'],['#d62828','','Mayor tasa','Precipitación estimada más intensa dentro de la escala del producto.']]});
+      rainLayer=L.tileLayer.wms(NASA_GIBS,{layers:NASA_IMERG_LAYER,format:'image/png',transparent:true,opacity:.70,version:'1.3.0',time:d,attribution:'NASA GPM / GIBS'}).addTo(maps.rainMap);
+      title.textContent='NASA GPM · IMERG · precipitación reciente';legend.textContent='IMERG: tasa de precipitación estimada por satélite. Haz clic en el mapa para explicar el punto y la capa.';setLayerStatus('rainStatus','NASA IMERG solicitado. La latencia del Early Run es aproximadamente de horas.',true);return;
     }
-    if(mode==='numeric'){
-      setContextLegend('rain',{title:'Lluvias · pronóstico numérico',source:'SENAMHI',intro:'Pronóstico modelado. Revisa siempre fecha y hora de validez del producto.'});
+    if(mode==='1d'){
+      setContextLegend('rain',{title:'Lluvias · próximas 24 h',source:'SENAMHI',intro:'Producto preventivo de corto plazo. Revisa siempre emisión, vigencia y simbología oficial.'});
+      setLayerStatus('rainStatus','Consultando capa SENAMHI de 24 horas…',true);
+      const lyr=await discoverWms(SEN_24H,['lluv','precip','24h','aviso']);
+      rainLayer=L.tileLayer.wms(SEN_24H,{layers:lyr.name,format:'image/png',transparent:true,opacity:.74,version:'1.1.1',attribution:'SENAMHI · IDESEP'}).addTo(maps.rainMap);
+      title.textContent='SENAMHI · 24 h · '+(lyr.title||lyr.name);legend.textContent='Corto plazo: capa oficial SENAMHI. La escala y vigencia corresponden al producto publicado.';setLayerStatus('rainStatus','Capa oficial de 24 h cargada.',true);return;
+    }
+    if(mode==='7d'){
+      setContextLegend('rain',{title:'Lluvias · 1 semana',source:'SENAMHI / NASA / NOAA',intro:'Pronóstico meteorológico de una semana. La incertidumbre aumenta con el horizonte y se contrasta con observación satelital.'});
       setLayerStatus('rainStatus','Consultando predicción numérica SENAMHI…',true);
       const lyr=await discoverWms(SEN_NUM,['prec','precip','lluv']);
       rainLayer=L.tileLayer.wms(SEN_NUM,{layers:lyr.name,format:'image/png',transparent:true,opacity:.72,version:'1.1.1',attribution:'SENAMHI · IDESEP'}).addTo(maps.rainMap);
-      title.textContent='SENAMHI · Predicción numérica · '+(lyr.title||lyr.name);if($('rainInfoTitle')){$('rainInfoTitle').textContent='Pronóstico numérico';$('rainInfoText').textContent='Modelo numérico oficial disponible mediante el geoservicio SENAMHI. Verifica la fecha y hora de validez del producto.';$('rainInfoFacts').innerHTML='<span>Fuente</span><b>SENAMHI</b><span>Tipo</span><b>Pronóstico modelado</b>'};
-      legend.textContent='Pronóstico numérico oficial de precipitación. Consulta la fecha de validez del producto original antes de interpretarlo.';
-      setLayerStatus('rainStatus','Capa de predicción numérica cargada.',true); return;
+      title.textContent='SENAMHI · pronóstico numérico · horizonte semanal';legend.textContent='Pronóstico modelado; verifique el rango temporal exacto de la capa oficial.';setLayerStatus('rainStatus','Pronóstico numérico cargado.',true);return;
     }
-    setContextLegend('rain',{title:mode==='24h'?'Lluvias intensas · 24 h':'Activación de quebradas',source:'SENAMHI',intro:mode==='24h'?'Producto preventivo de corto plazo ante lluvias intensas.':'Producto oficial de posibilidad de activación de quebradas. La vigencia y nivel dependen del aviso publicado.'});
-    const base=mode==='24h'?SEN_24H:SEN_Q;
-    setLayerStatus('rainStatus','Consultando catálogo WMS de SENAMHI…',true);
-    const lyr=await discoverWms(base,mode==='24h'?['lluv','precip','24h','aviso']:['queb','activ']);
-    rainLayer=L.tileLayer.wms(base,{layers:lyr.name,format:'image/png',transparent:true,opacity:.72,version:'1.1.1',attribution:'SENAMHI · IDESEP'}).addTo(maps.rainMap);
-    title.textContent='SENAMHI · '+(lyr.title||lyr.name);
-    legend.textContent=mode==='24h'?'Aviso/capa de corto plazo ante lluvias intensas publicada por SENAMHI.':'Aviso oficial de activación de quebradas publicado por SENAMHI.';
-    setLayerStatus('rainStatus','Capa oficial cargada: '+(lyr.title||lyr.name),true);
+    if(/^[1-6]m$/.test(mode)){
+      const h=+mode[0];
+      setContextLegend('rain',{title:`Lluvias · proyección +${h} mes${h>1?'es':''}`,source:'NOAA/NCEP CFSv2 + SENAMHI',intro:'Horizonte climático estacional. Se interpreta como anomalía/tendencia del modelo, no como pronóstico de lluvia en un día concreto.',items:[['#b45309','','Bajo lo normal','Anomalía negativa cuando así lo representa la escala del producto.'],['#f5f5f5','outline','Cerca de lo normal','Valores próximos a la climatología del modelo.'],['#2563eb','','Sobre lo normal','Anomalía positiva de precipitación según el modelo.']]});
+      title.textContent=`NOAA CFSv2 · proyección climática a ${h} mes${h>1?'es':''}`;
+      legend.textContent='La imagen NOAA CFSv2 se muestra en el panel lateral. El mapa queda libre para ubicación territorial y consulta contextual.';
+      setLayerStatus('rainStatus','Proyección estacional cargada como guía NOAA CFSv2. No es un pronóstico puntual.',true);return;
+    }
+    if(mode==='quebradas'){
+      setContextLegend('rain',{title:'Activación de quebradas',source:'SENAMHI',intro:'Aviso oficial. Revise nivel, ámbito y vigencia del producto publicado.'});
+      setLayerStatus('rainStatus','Consultando activación de quebradas SENAMHI…',true);
+      const lyr=await discoverWms(SEN_Q,['queb','activ']);
+      rainLayer=L.tileLayer.wms(SEN_Q,{layers:lyr.name,format:'image/png',transparent:true,opacity:.74,version:'1.1.1',attribution:'SENAMHI · IDESEP'}).addTo(maps.rainMap);
+      title.textContent='SENAMHI · '+(lyr.title||lyr.name);legend.textContent='Posible activación de quebradas según aviso oficial y su vigencia.';setLayerStatus('rainStatus','Capa de quebradas cargada.',true);return;
+    }
   }catch(e){
-    title.textContent='SENAMHI · capa dinámica no disponible';
-    legend.textContent='El geoservicio dinámico no respondió al navegador. Se muestra automáticamente el pronóstico estacional JJA como respaldo.';
-    setLayerStatus('rainStatus','La capa de corto plazo no respondió. Mostrando respaldo oficial JJA.',false);
-    rainLayer=L.tileLayer.wms(SEN_JJA,{layers:SEN_JJA_LAYER,format:'image/png',transparent:true,opacity:.68,version:'1.1.1',attribution:'SENAMHI · IDESEP'}).addTo(maps.rainMap);
+    title.textContent='Capa dinámica temporalmente no disponible';legend.textContent='La fuente seleccionada no respondió. El mapa base continúa operativo y la explicación conserva la fuente/horizonte.';setLayerStatus('rainStatus','Fuente temporalmente no disponible. Reintente en unos minutos.',false);
   }
 }
 function clearRisk(){
@@ -494,7 +530,7 @@ function toggleContextLegend(){
 function showView(id){
   setContextLegend(id);
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===id));document.querySelectorAll('.mainnav button').forEach(b=>b.classList.toggle('active',b.dataset.view===id));
-  setTimeout(()=>{if(maps[id+'Map'])maps[id+'Map'].invalidateSize();if(id==='monitor')maps.map.invalidateSize();if(id==='forecast'){maps.forecastMap.invalidateSize();ensureForecastData()}if(id==='risk'){maps.riskMap.invalidateSize();if(!riskWms)initRisk()}if(id==='soil')maps.soilMap.invalidateSize();if(id==='rain'){maps.rainMap.invalidateSize();if(!rainLayer)loadRain('jja')}if(id==='marine'){maps.marineMap.invalidateSize();renderMarinePorts()}if(id==='agriculture'){maps.agriMap.invalidateSize();initAgriculture()}if(id==='risk'){maps.riskMap.invalidateSize();refreshRiskMode()}},120);
+  setTimeout(()=>{if(maps[id+'Map'])maps[id+'Map'].invalidateSize();if(id==='monitor')maps.map.invalidateSize();if(id==='forecast'){maps.forecastMap.invalidateSize();ensureForecastData()}if(id==='risk'){maps.riskMap.invalidateSize();if(!riskWms)initRisk()}if(id==='soil')maps.soilMap.invalidateSize();if(id==='rain'){maps.rainMap.invalidateSize();if(!rainLayer)loadRain(currentRainMode||'now')}if(id==='marine'){maps.marineMap.invalidateSize();renderMarinePorts()}if(id==='agriculture'){maps.agriMap.invalidateSize();initAgriculture()}if(id==='risk'){maps.riskMap.invalidateSize();refreshRiskMode()}},120);
 }
 
 
@@ -569,6 +605,16 @@ async function loadEnfen(){
     $('enfenSummary').textContent=(enfenData.summary||'Consulta el último comunicado oficial.').slice(0,700);
     return enfenData;
   }catch(e){$('enfenState').textContent='ENFEN temporalmente no disponible';return null}
+}
+async function loadSigridWatch(){
+  try{
+    sigridData=await get('/api/sigrid/latest',15000);
+    $('sigridWatchBadge').textContent=sigridData.ok?'ACTUALIZADO':'REVISAR';
+    $('sigridWatchTitle').textContent='SIGRID / CENEPRED · fuentes verificadas';
+    $('sigridWatchText').textContent='Revisión automática de fuentes oficiales configuradas. Cada documento conserva enlace directo y estado de disponibilidad.';
+    $('sigridWatchFacts').innerHTML=`<span>Última revisión</span><b>${pe(sigridData.checkedAt)}</b><span>Fuentes disponibles</span><b>${(sigridData.sources||[]).filter(x=>x.ok).length} / ${(sigridData.sources||[]).length}</b>`;
+    $('sigridWatchLinks').innerHTML=(sigridData.sources||[]).map(x=>`<a target="_blank" rel="noopener" href="${esc(x.url)}">${esc(x.name)} ↗</a>`).join('');
+  }catch(e){$('sigridWatchBadge').textContent='SIN RESPUESTA';$('sigridWatchText').textContent='No fue posible verificar las fuentes SIGRID/CENEPRED en esta consulta.'}
 }
 async function setRiskMode(mode){
   riskMode=mode;
@@ -645,6 +691,7 @@ function renderAgriSelection(){
   $('agriFacts').innerHTML=`<span>Campaña</span><b>${esc(agriData?.campaign||'2026-2027')}</b><span>Siembra referencial</span><b>${esc(c.planting)}</b><span>Cosecha referencial</span><b>${esc(c.harvest)}</b><span>Fuente metodológica</span><b>MIDAGRI / SIEA</b>`;
   const months=+c.months||0;
   $('agriHarvestEstimate').innerHTML=`<b>Estimación orientativa</b><p>Si se conoce el mes real de siembra, una primera aproximación de cosecha puede obtenerse desplazando alrededor de <strong>${months} meses</strong>, sujeto a variedad, clima, altitud y manejo. Para una cifra productiva use SIEA y reportes locales.</p>`;
+  const model=agriData?.model||{};$('agriOpportunity').textContent=model.status==='ready'?(model.index+' / 100'):'DATOS INSUFICIENTES';$('agriConfidence').textContent=model.status==='ready'?(model.confidence||'—'):'—';$('agriSample').textContent=model.samples||'Sin serie distrital integrada';$('agriHorizon').textContent=model.horizon||'Campaña 2026-2027';$('agriModelText').textContent=model.status==='ready'?model.note:'El portal no inventará una probabilidad de siembra. El cálculo se habilita cuando MIDAGRI/SIEA, clima y series históricas verificables estén integradas para el distrito y cultivo.';
 }
 
 const marinePorts=[
@@ -679,6 +726,7 @@ function renderMarinePorts(){
   pts.forEach(p=>{
     const mk=L.circleMarker([p.lat,p.lon],{radius:6,color:'#d7f4ff',weight:1.5,fillColor:'#20a8d8',fillOpacity:.9}).addTo(marineLayer);
     mk.bindPopup(`<div class="popup"><b>${esc(p.name)}</b><p>Puerto/sector costero de consulta referencial.</p><p>Antes de una salida revisa mareas, viento, oleaje, vedas y restricciones locales.</p><a target="_blank" rel="noopener" href="https://www.dhn.mil.pe/portal/tabla-mareas">Tabla de mareas DHN ↗</a></div>`);
+    mk.on('click',()=>setContextLegend('marine',{title:`Mar y pesca · ${p.name}`,source:'DHN / PRODUCE / IMARPE',intro:'Punto costero de consulta. El marcador no representa una condición de peligro por sí mismo: revise mareas, viento, oleaje, avisos y restricciones vigentes antes de una actividad marítima.'}));
   });
   const bounds=marineFilter==='north'?[[-9.8,-82.3],[-3,-78.5]]:marineFilter==='center'?[[-15,-79],[-9.5,-75]]:marineFilter==='south'?[[-18.5,-76],[-13.5,-70]]:[[-18.6,-82.4],[-3,-70]];
   maps.marineMap.fitBounds(bounds,{padding:[15,15]});
@@ -706,9 +754,33 @@ function refreshMeteoImages(){
   ['goesImage','dhnWindImage','marineWindImage'].forEach(id=>{const el=$(id);if(el)el.src=(id==='goesImage'?'/api/noaa/geocolor':'/api/dhn/wind')+'?t='+t});
 }
 
+
+const SOUND_OPTIONS=[
+ ['sirena_emergencia','🚨 Sirena de emergencia'],['sirena_sismica','🚨 Sirena sísmica intensa'],['radar_alerta','📡 Alerta radar'],['campana_urgente','🔔 Campana urgente'],['alerta_tecnologica','🤖 Alerta tecnológica'],['corre_perra','😂 ¡Corre perra, coooorreee!'],['corran_todos','🏃 ¡Corran todos, está temblando!'],['se_mueve','😅 ¡Se mueve, se mueve!'],['despierta','😴 ¡Despierta, está temblando!'],['panic_mode','🚨 Panic Mode']
+];
+let soundPreview=null;
+function nativeBridge(){return window.GeoSismosAndroid&&typeof window.GeoSismosAndroid.setEarthquakeSound==='function'?window.GeoSismosAndroid:null}
+function renderSoundOptions(){
+  const box=$('soundOptions');if(!box)return;
+  try{const b=nativeBridge();if(b&&b.getEarthquakeSound)selectedSound=b.getEarthquakeSound()||selectedSound}catch(e){}
+  box.innerHTML=SOUND_OPTIONS.map(([k,n])=>`<div class="sound-option ${k===selectedSound?'selected':''}"><button class="sound-select" data-sound-select="${k}">${n}</button><button class="sound-preview" data-sound-preview="${k}">▶ Probar</button></div>`).join('');
+  box.querySelectorAll('[data-sound-select]').forEach(b=>b.onclick=()=>selectEarthquakeSound(b.dataset.soundSelect));
+  box.querySelectorAll('[data-sound-preview]').forEach(b=>b.onclick=()=>previewEarthquakeSound(b.dataset.soundPreview));
+}
+function selectEarthquakeSound(k){
+  selectedSound=k;localStorage.setItem('gsl_sound',k);try{const b=nativeBridge();if(b)b.setEarthquakeSound(k)}catch(e){}renderSoundOptions();previewEarthquakeSound(k);
+}
+function previewEarthquakeSound(k){
+  try{const b=nativeBridge();if(b&&b.previewEarthquakeSound){b.previewEarthquakeSound(k);return}}catch(e){}
+  if(soundPreview){soundPreview.pause();soundPreview=null}soundPreview=new Audio(`/sounds/${k}.wav`);soundPreview.play().catch(()=>{});
+}
+function openSoundSettings(){renderSoundOptions();$('soundSettings').classList.add('open');$('soundSettings').setAttribute('aria-hidden','false')}
+function closeSoundSettings(){$('soundSettings').classList.remove('open');$('soundSettings').setAttribute('aria-hidden','true')}
+
 function bind(){
   document.querySelectorAll('.mainnav button').forEach(b=>b.onclick=()=>showView(b.dataset.view));
   $('contextLegendToggle').onclick=toggleContextLegend;
+  $('soundSettingsBtn').onclick=openSoundSettings;$('closeSoundSettings').onclick=closeSoundSettings;
   $('soundBtn').onclick=async()=>{sound=!sound;if(sound&&!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();$('soundBtn').textContent=sound?'🔊 ALERTAS ACTIVAS':'🔇 ACTIVAR ALERTAS'};
   document.querySelectorAll('[data-window]').forEach(b=>b.onclick=()=>{mapWindow=+b.dataset.window;document.querySelectorAll('[data-window]').forEach(x=>x.classList.toggle('active',x===b));renderMonitor()});
   $('minMag').oninput=()=>{$('minMagVal').textContent=(+$('minMag').value).toFixed(1);renderMonitor()};
@@ -723,6 +795,8 @@ function bind(){
   document.querySelectorAll('[data-projmode]').forEach(b=>b.onclick=()=>{projectionMode=b.dataset.projmode;document.querySelectorAll('[data-projmode]').forEach(x=>x.classList.toggle('active',x===b));renderForecast()});
   document.querySelectorAll('.soil-tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.soil-tabs button').forEach(x=>x.classList.toggle('active',x===b));setSoilLayer(b.dataset.soil)});
   maps.soilMap.on('click',e=>identifySoil(e.latlng));
+  maps.rainMap.on('click',e=>{updateRainInfo(currentRainMode,e.latlng);const [t,d,src]=rainExplanation(currentRainMode,e.latlng);setContextLegend('rain',{title:t,source:src,intro:d})});
+  maps.riskMap.on('click',e=>{if(riskMode==='hazards'){$('riskInfoTitle').textContent='Punto consultado';$('riskInfoText').textContent='Ubicación seleccionada en la capa de peligro activa. Para conocer la clase exacta use la identificación de la fuente oficial cuando esté disponible.';$('riskInfoFacts').innerHTML=`<span>Coordenadas</span><b>${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}</b><span>Modo</span><b>Peligros territoriales</b>`}});
   document.querySelectorAll('[data-riskmode]').forEach(b=>b.onclick=()=>setRiskMode(b.dataset.riskmode));
   $('agriCropSelect').onchange=renderAgriSelection;
   $('agriReset').onclick=()=>{selectedAgriFeature=null;maps.agriMap.fitBounds([[-20.5,-82.5],[-2,-68]],{padding:[8,8]});$('agriAreaTitle').textContent='Selecciona un distrito';$('agriAreaText').textContent='Al seleccionar un ámbito se mostrará el cultivo elegido, su ciclo referencial y los accesos a información oficial disponible.';renderAgriSelection()};
@@ -743,6 +817,6 @@ function renderNews(){
 }
 function tick(){ $('clock').textContent=clockFmt.format(new Date()) }
 document.addEventListener('DOMContentLoaded',()=>{
-  initMaps();bind();setContextLegend('monitor');renderNews();renderFishingSectors();loadRain('jja');initRisk();loadEnfen();tick();setInterval(tick,1000);poll();setInterval(poll,10000);
-  setTimeout(()=>renderForecast(),2500);setInterval(()=>{if(riskMode==='emergency'||riskMode==='elnino')fetchEmergencyData(true).then(()=>refreshRiskMode())},30*60*1000);
+  initMaps();bind();setContextLegend('monitor');renderNews();renderFishingSectors();loadRain('now');initRisk();loadEnfen();loadSigridWatch();tick();setInterval(tick,1000);poll();setInterval(poll,10000);
+  setTimeout(()=>renderForecast(),2500);setInterval(()=>{if(riskMode==='emergency'||riskMode==='elnino')fetchEmergencyData(true).then(()=>refreshRiskMode());loadSigridWatch()},30*60*1000);
 });

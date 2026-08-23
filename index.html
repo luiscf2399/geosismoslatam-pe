@@ -8,7 +8,7 @@
 <link rel="icon" href="logo.svg">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="styles.css?v=7.2.0">
+<link rel="stylesheet" href="styles.css?v=8.0.0">
 </head>
 <body>
 <header class="top">
@@ -22,6 +22,7 @@
   <div class="header-status">
     <div class="mini"><span>●</span><b>ACTUALIZACIÓN AUTOMÁTICA</b><em id="clock">—</em></div>
     <button id="soundBtn" class="alert-button">🔇 ACTIVAR ALERTAS</button>
+    <button id="soundSettingsBtn" class="alert-button secondary">⚙ SONIDOS</button>
     <button id="alertState" class="alert-state">SIN ALERTAS</button>
   </div>
 </header>
@@ -62,6 +63,13 @@
     <div id="contextLegendItems" class="legend-items"></div>
     <div id="contextLegendNote" class="legend-note"></div>
   </div>
+</aside>
+
+<aside id="soundSettings" class="sound-settings" aria-hidden="true">
+  <div class="sound-settings-head"><div><span class="eyebrow">ALERTAS SÍSMICAS</span><h3>Sonido de reporte</h3></div><button id="closeSoundSettings" class="icon-close">×</button></div>
+  <p>Elige y prueba un tono. En Android la selección se usa para la notificación nativa; en la web se reproduce mientras el portal está abierto.</p>
+  <div id="soundOptions" class="sound-options"></div>
+  <div class="sound-note"><b>Importante</b><span>Los audios divertidos identifican un reporte; no sustituyen sirenas oficiales ni sistemas de alerta temprana.</span></div>
 </aside>
 
 <main>
@@ -276,17 +284,23 @@
     <section class="map-panel">
       <div class="map-head">
         <div><b>MAPA NACIONAL DE LLUVIAS</b><small id="rainLayerTitle">SENAMHI · cargando capa oficial…</small></div>
-        <div class="segmented mini rain-tabs">
-          <button data-rain="jja" class="active">Pronóstico estacional</button>
-          <button data-rain="numeric">Pronóstico numérico</button>
-          <button data-rain="24h">Lluvias 24 h</button>
+        <div class="segmented mini rain-tabs rain-horizons">
+          <button data-rain="now" class="active">Ahora · NASA</button>
+          <button data-rain="1d">1 día</button>
+          <button data-rain="7d">1 semana</button>
+          <button data-rain="1m">1 mes</button>
+          <button data-rain="2m">2 meses</button>
+          <button data-rain="3m">3 meses</button>
+          <button data-rain="4m">4 meses</button>
+          <button data-rain="5m">5 meses</button>
+          <button data-rain="6m">6 meses</button>
           <button data-rain="quebradas">Quebradas</button>
           <button data-rain="off">Ocultar</button>
         </div>
       </div>
       <div id="rainMap" class="bigmap medium"></div>
       <div id="rainStatus" class="layer-status floating">Cargando información oficial SENAMHI…</div>
-      <div class="callout floating rain-callout"><b>LECTURA DEL VISOR</b><span id="rainLegendText">Pronóstico climático de precipitación JJA publicado por SENAMHI.</span><span>Las capas 24 h dependen de la disponibilidad del geoservicio oficial.</span></div>
+      <div class="callout floating rain-callout"><b>LECTURA DEL VISOR</b><span id="rainLegendText">NASA IMERG para precipitación reciente; SENAMHI para corto plazo; NOAA CFSv2 para orientación estacional.</span><span>Los horizontes de 1 a 6 meses son proyecciones climáticas, no predicciones de una lluvia en una fecha exacta.</span></div>
     </section>
     <aside class="portal-side">
       <article class="panel info-panel accent-rain">
@@ -294,6 +308,14 @@
         <h3 id="rainInfoTitle">Pronóstico estacional</h3>
         <p id="rainInfoText">Selecciona una capa de lluvia, precipitación o quebradas para conocer qué representa y cuál es su fuente.</p>
         <div id="rainInfoFacts" class="info-facts"></div>
+      </article>
+      <article class="panel climate-projection-card">
+        <div class="sectionline"><b>PROYECCIÓN CLIMÁTICA · NOAA CFSv2</b><span class="official-chip noaa">NOAA/NCEP</span></div>
+        <h3 id="cfsv2Title">Seleccione 1–6 meses</h3>
+        <div class="sat-image-wrap climate-image"><img id="cfsv2Image" alt="NOAA CFSv2 anomalía de precipitación" hidden></div>
+        <p id="cfsv2Text">Para horizontes mensuales se muestra una guía del modelo global CFSv2. No representa lluvia exacta en una fecha o distrito.</p>
+        <div id="cfsv2Meta" class="info-facts"></div>
+        <a class="btn" target="_blank" rel="noopener" href="https://www.cpc.ncep.noaa.gov/products/CFSv2/htmls/glbPrece1MonNorm.html">ABRIR NOAA CFSv2 ↗</a>
       </article>
       <article class="panel satellite-card">
         <div class="sectionline"><b>SATÉLITE GOES · SUDAMÉRICA SUR</b><span class="official-chip noaa">NOAA/NESDIS</span></div>
@@ -454,6 +476,13 @@
         <div id="riskInfoFacts" class="info-facts"></div>
         <div id="riskInfoLinks" class="info-links"></div>
       </article>
+      <article class="panel sigrid-watch accent-risk">
+        <div class="sectionline"><b>SIGRID / CENEPRED · REVISIÓN DE FUENTES</b><span id="sigridWatchBadge" class="official-chip">consultando</span></div>
+        <h3 id="sigridWatchTitle">Escenarios y documentos de riesgo</h3>
+        <p id="sigridWatchText">La plataforma verifica periódicamente fuentes oficiales configuradas y conserva la fecha de la última revisión. No simula una API de SIGRID si esta no está publicada.</p>
+        <div id="sigridWatchFacts" class="info-facts"></div>
+        <div id="sigridWatchLinks" class="info-links"></div>
+      </article>
       <article class="panel risk-summary accent-amber">
         <div class="sectionline"><b>ESTADOS DE EMERGENCIA</b><span class="official-chip">PCM / EL PERUANO</span></div>
         <div class="metric-grid">
@@ -592,6 +621,17 @@
         <div id="agriHarvestEstimate" class="estimate-box"></div>
       </article>
 
+      <article class="panel agri-model-card">
+        <div class="sectionline"><b>MODELO AGROCLIMÁTICO</b><span class="experimental">EN VALIDACIÓN</span></div>
+        <h3>Índice de oportunidad de siembra</h3>
+        <div class="metric-grid">
+          <div><span>Índice</span><b id="agriOpportunity">—</b></div>
+          <div><span>Confianza</span><b id="agriConfidence">—</b></div>
+          <div><span>Datos disponibles</span><b id="agriSample">—</b></div>
+          <div><span>Horizonte</span><b id="agriHorizon">—</b></div>
+        </div>
+        <p id="agriModelText">Solo se calculará un índice cuantitativo cuando existan series verificables suficientes; de lo contrario se mostrará “datos insuficientes”.</p>
+      </article>
       <article class="panel">
         <h3>Fuentes oficiales agrícolas</h3>
         <p>El SIEA recopila avances y perspectivas de siembras y cosechas a nivel distrito, provincia y región; GeoSismosLatam solo mostrará valores exactos cuando el dato pueda verificarse.</p>
@@ -643,6 +683,6 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 <script src="https://unpkg.com/esri-leaflet@3.0.15/dist/esri-leaflet.js"></script>
-<script src="app.js?v=7.2.0"></script>
+<script src="app.js?v=8.0.0"></script>
 </body>
 </html>

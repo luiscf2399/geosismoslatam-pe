@@ -354,7 +354,8 @@ async function agriculture(ctx,env){
     const payload={
       ok:true,generatedAt:Date.now(),campaign:"2026-2027",
       methodology:"SIEA registra avances y perspectivas de cultivos a nivel distrito, provincia y región. Las cosechas proyectadas se relacionan con las siembras ejecutadas y el periodo vegetativo.",
-      crops:CROP_CALENDAR,sources
+      crops:CROP_CALENDAR,sources,
+      model:{status:"insufficient",index:null,confidence:null,samples:null,horizon:"Campaña 2026-2027",note:"El índice estadístico se habilitará únicamente cuando existan series distritales verificables suficientes de siembra/cosecha y variables agroclimáticas."}
     };
     if(env?.DB){
       try{
@@ -395,6 +396,48 @@ async function noaaGeoColor(ctx){
   return res;
 }
 
+
+async function noaaCfsv2Precip(request,ctx){
+  const u=new URL(request.url);const h=Math.max(1,Math.min(6,Number(u.searchParams.get('horizon')||1)));
+  const pageUrl='https://www.cpc.ncep.noaa.gov/products/CFSv2/htmls/glbPrece1MonNorm.html';
+  const cache=caches.default;const key=new Request(`https://cache.geosismoslatam.pe/noaa/cfsv2/precip/${h}`);
+  const hit=await cache.match(key);if(hit)return hit;
+  const page=await fetch(pageUrl,{headers:{'User-Agent':'GeoSismosLatam/8 climate viewer'},cf:{cacheTtl:21600,cacheEverything:true}});
+  if(!page.ok)throw new Error('NOAA CFSv2 no disponible');
+  const html=await page.text();
+  const srcs=[...html.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)].map(m=>new URL(m[1],pageUrl).href)
+    .filter(x=>/\.(png|gif|jpe?g)(\?|$)/i.test(x));
+  const climate=srcs.filter(x=>/prec|prate|glb|cfsv2|forecast/i.test(x));
+  const candidates=climate.length>=6?climate:srcs;
+  const unique=[...new Set(candidates)];
+  if(unique.length<h)throw new Error('NOAA no publicó suficientes imágenes mensuales detectables');
+  const imageUrl=unique[h-1];
+  const img=await fetch(imageUrl,{headers:{'User-Agent':'GeoSismosLatam/8 climate viewer'},cf:{cacheTtl:21600,cacheEverything:true}});
+  if(!img.ok)throw new Error('Imagen NOAA CFSv2 no disponible');
+  const headers=new Headers(img.headers);Object.entries(cors).forEach(([k,v])=>headers.set(k,v));
+  headers.set('Cache-Control','public, max-age=600, s-maxage=21600');headers.set('X-GeoSismos-Source','NOAA/NCEP CFSv2');headers.set('X-GeoSismos-Horizon',String(h));
+  const res=new Response(img.body,{status:200,headers});ctx.waitUntil(cache.put(key,res.clone()));return res;
+}
+
+const SIGRID_WATCH=[
+  {name:'SIGRID · portal nacional',url:'https://sigrid4.cenepred.gob.pe/'},
+  {name:'CENEPRED · escenario déficit hídrico 2026–2027',url:'https://sigrid.cenepred.gob.pe/sigridv3/documento/22328'},
+  {name:'CENEPRED · portal institucional',url:'https://www.gob.pe/cenepred'}
+];
+async function sigridLatest(ctx,env){
+  const key='https://cache.geosismoslatam.pe/sigrid/latest/v8';
+  return cachedJson(key,1800,ctx,async()=>{
+    const checks=await Promise.allSettled(SIGRID_WATCH.map(async x=>{
+      const r=await fetch(x.url,{redirect:'follow',headers:{'User-Agent':'GeoSismosLatam/8 risk source watcher'},cf:{cacheTtl:900,cacheEverything:true}});
+      return {...x,ok:r.ok,status:r.status,checkedAt:Date.now(),finalUrl:r.url||x.url};
+    }));
+    const sources=checks.map((x,i)=>x.status==='fulfilled'?x.value:{...SIGRID_WATCH[i],ok:false,status:0,checkedAt:Date.now()});
+    const payload={ok:sources.some(x=>x.ok),checkedAt:Date.now(),sources,note:'Verificación periódica de disponibilidad de fuentes configuradas. No equivale a una API oficial de descubrimiento total de documentos SIGRID.'};
+    if(env?.DB){try{await env.DB.prepare('INSERT INTO source_snapshots(source_key, fetched_at, payload) VALUES(?1,?2,?3)').bind('sigrid_watch',Date.now(),JSON.stringify(payload)).run()}catch{}}
+    return payload;
+  });
+}
+
 async function dhnWind(){
   return proxyImage("https://www.naylamp.dhn.mil.pe/oceano/pronosticos/data/peru_wind_1.gif",300);
 }
@@ -409,11 +452,13 @@ export default {
         const home=new URL("/index.html",request.url);
         return env.ASSETS.fetch(new Request(home,request));
       }
-      if(u.pathname==="/api/health") return json({ok:true,time:Date.now(),service:"GeoSismosLatam API v7"});
+      if(u.pathname==="/api/health") return json({ok:true,time:Date.now(),service:"GeoSismosLatam API v8"});
       if(u.pathname==="/api/emergencies") return emergencies(request,ctx,env);
       if(u.pathname==="/api/enfen") return enfen(ctx,env);
       if(u.pathname==="/api/agriculture") return agriculture(ctx,env);
       if(u.pathname==="/api/noaa/geocolor") return noaaGeoColor(ctx);
+      if(u.pathname==="/api/noaa/cfsv2/precip") return noaaCfsv2Precip(request,ctx);
+      if(u.pathname==="/api/sigrid/latest") return json(await sigridLatest(ctx,env),200,{"Cache-Control":"public, max-age=300"});
       if(u.pathname==="/api/dhn/wind") return dhnWind();
       if(u.pathname.startsWith("/api/wms/")){
         const source=u.pathname.split("/")[3];
@@ -433,9 +478,9 @@ export default {
   async scheduled(event,env,ctx){
     const req=new Request("https://geosismoslatam.local/internal");
     if(event.cron==="*/30 * * * *"){
-      ctx.waitUntil(Promise.allSettled([emergencies(req,ctx,env),enfen(ctx,env)]));
+      ctx.waitUntil(Promise.allSettled([emergencies(req,ctx,env),enfen(ctx,env),sigridLatest(ctx,env)]));
     }else{
-      ctx.waitUntil(Promise.allSettled([agriculture(ctx,env),enfen(ctx,env)]));
+      ctx.waitUntil(Promise.allSettled([agriculture(ctx,env),enfen(ctx,env),sigridLatest(ctx,env)]));
     }
   }
 };

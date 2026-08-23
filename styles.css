@@ -374,3 +374,14 @@ button:disabled{opacity:.5;cursor:not-allowed}
   .context-legend{right:8px;bottom:8px;width:calc(100vw - 16px)}
   .context-legend-body{max-height:44vh}
 }
+
+/* GeoSismosLatam v8 · clima, visor dinámico y sonidos */
+.alert-button.secondary{background:#0d2940;border-color:#375d76;color:#dbeeff}
+.rain-horizons{display:flex;flex-wrap:wrap;gap:5px;max-width:780px;justify-content:flex-end}
+.rain-horizons button{min-width:64px}
+.climate-image{min-height:170px;background:#061521;border:1px solid #24465c;border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.climate-image img{width:100%;height:auto;max-height:320px;object-fit:contain;background:white}
+.sigrid-watch .info-links{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.sigrid-watch .info-links a{font-size:.78rem}
+.sound-settings{position:fixed;z-index:2100;right:14px;top:14px;width:min(430px,calc(100vw - 28px));max-height:calc(100vh - 28px);overflow:auto;background:#071827;border:1px solid #355a70;border-radius:16px;box-shadow:0 18px 55px #0009;padding:16px;transform:translateX(calc(100% + 40px));transition:transform .22s ease;color:#e8f5ff}
+.sound-settings.open{transform:translateX(0)}.sound-settings-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.sound-settings-head h3{margin:2px 0 0}.icon-close{font-size:26px;background:#102f45;border:1px solid #40637a;color:white;border-radius:9px;width:38px;height:38px;cursor:pointer}.sound-options{display:grid;gap:8px;margin-top:14px}.sound-option{display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px;border:1px solid #27475b;border-radius:10px;background:#0b2233}.sound-option.selected{outline:2px solid #43b7e8;background:#10354c}.sound-select,.sound-preview{border:0;border-radius:8px;padding:10px;cursor:pointer}.sound-select{text-align:left;background:transparent;color:#f1f8fc;font-weight:700}.sound-preview{background:#17425d;color:white}.sound-note{display:grid;gap:3px;margin-top:14px;padding:11px;border-radius:10px;background:#2c230d;border:1px solid #6e5c22;font-size:.8rem}
+@media(max-width:760px){.rain-horizons{display:flex;overflow-x:auto;flex-wrap:nowrap;max-width:100%;justify-content:flex-start;padding-bottom:4px}.rain-horizons button{flex:0 0 auto}.sound-settings{right:6px;top:6px;width:calc(100vw - 12px);max-height:calc(100vh - 12px)}.header-status{flex-wrap:wrap}.alert-button.secondary{font-size:.72rem}.climate-image{min-height:130px}}
