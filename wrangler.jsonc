@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "geosismoslatam-pe",
+  "compatibility_date": "2026-08-22",
+
+  "assets": {
+    "directory": "."
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "geosismoslatam-db",
+      "database_id": "29774c0c-743f-4c5c-81f7-3df3def34ede"
+    }
+  ]
+}
