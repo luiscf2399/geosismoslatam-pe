@@ -8,7 +8,7 @@
 <link rel="icon" href="logo.svg">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="styles.css?v=8.0.0">
+<link rel="stylesheet" href="styles.css?v=11.0.0">
 </head>
 <body>
 <header class="top">
@@ -45,30 +45,40 @@
   <span id="updated">Actualizado: —</span>
 </div>
 
-<aside id="contextLegend" class="context-legend">
-  <button id="contextLegendToggle" class="context-legend-toggle" aria-expanded="true">
-    <span>ⓘ</span>
-    <div><b id="contextLegendMiniTitle">Cómo leer este visor</b><small id="contextLegendMiniSource">GeoSismosLatam</small></div>
-    <strong id="contextLegendArrow">⌄</strong>
-  </button>
-  <div id="contextLegendBody" class="context-legend-body">
-    <div class="context-legend-head">
-      <div>
-        <span class="eyebrow">LEYENDA E INTERPRETACIÓN</span>
-        <h3 id="contextLegendTitle">Monitoreo sísmico</h3>
-      </div>
-      <span id="contextLegendSource" class="legend-source">IGP / CENSIS</span>
+<section id="contextLegend" class="map-legend-panel theme-monitor" aria-label="Leyenda del geovisor">
+  <div class="map-legend-head">
+    <div>
+      <span class="eyebrow">LEYENDA DEL MAPA</span>
+      <h3 id="contextLegendTitle">Monitoreo sísmico</h3>
+      <p id="contextLegendIntro">Selecciona un elemento del mapa para ver su explicación.</p>
     </div>
-    <p id="contextLegendIntro">Selecciona un elemento del mapa para ver su explicación.</p>
-    <div id="contextLegendItems" class="legend-items"></div>
-    <div id="contextLegendNote" class="legend-note"></div>
+    <div class="legend-meta">
+      <span id="contextLegendSource" class="legend-source">IGP / CENSIS</span>
+      <span id="contextLegendMode" class="legend-mode">LEYENDA DINÁMICA</span>
+    </div>
   </div>
-</aside>
+  <div id="contextLegendScale" class="legend-color-scale" aria-hidden="true"></div>
+  <div class="legend-situation-grid">
+    <div><span>CAPA / SITUACIÓN</span><b id="contextLegendSituation">Vista general</b></div>
+    <div><span>VARIABLE</span><b id="contextLegendVariable">—</b></div>
+    <div><span>UNIDAD</span><b id="contextLegendUnit">—</b></div>
+    <div><span>HORIZONTE</span><b id="contextLegendHorizon">Actual</b></div>
+  </div>
+  <div class="legend-table-wrap">
+    <table class="legend-table">
+      <thead><tr><th>Color / símbolo</th><th>Representa</th><th>Cómo interpretarlo</th></tr></thead>
+      <tbody id="contextLegendItems"></tbody>
+    </table>
+  </div>
+  <div id="contextLegendNote" class="legend-note"></div>
+  <div class="legend-foot"><b>Uso:</b> la leyenda cambia con cada visor, capa, variable, horizonte y elemento seleccionado. Solo explica lo que está visible en ese momento. La simbología oficial de la fuente prevalece cuando exista una leyenda institucional específica.</div>
+</section>
 
 <aside id="soundSettings" class="sound-settings" aria-hidden="true">
   <div class="sound-settings-head"><div><span class="eyebrow">ALERTAS SÍSMICAS</span><h3>Sonido de reporte</h3></div><button id="closeSoundSettings" class="icon-close">×</button></div>
   <p>Elige y prueba un tono. En Android la selección se usa para la notificación nativa; en la web se reproduce mientras el portal está abierto.</p>
   <div id="soundOptions" class="sound-options"></div>
+  <div id="soundPreviewStatus" class="sound-preview-status" role="status">Selecciona ▶ Probar para escuchar un sonido.</div>
   <div class="sound-note"><b>Importante</b><span>Los audios divertidos identifican un reporte; no sustituyen sirenas oficiales ni sistemas de alerta temprana.</span></div>
 </aside>
 
@@ -683,6 +693,6 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 <script src="https://unpkg.com/esri-leaflet@3.0.15/dist/esri-leaflet.js"></script>
-<script src="app.js?v=8.0.0"></script>
+<script src="app.js?v=11.0.0"></script>
 </body>
 </html>
