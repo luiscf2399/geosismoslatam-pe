@@ -1,0 +1,10 @@
+/* GeoSismosLatam V16.6 — Autocompletado universal */
+.gsl-smart-wrap{position:relative}
+.gsl-smart-list{position:absolute;z-index:25000;left:0;right:0;top:calc(100% + 4px);max-height:260px;overflow:auto;background:#0e1722;border:1px solid rgba(255,255,255,.14);border-radius:10px;box-shadow:0 14px 34px rgba(0,0,0,.35);display:none}
+.gsl-smart-list.show{display:block}
+.gsl-smart-item{display:flex;align-items:flex-start;gap:8px;width:100%;padding:9px 11px;border:0;border-bottom:1px solid rgba(255,255,255,.07);background:transparent;color:#eef6ff;text-align:left;cursor:pointer}
+.gsl-smart-item:hover,.gsl-smart-item.active{background:rgba(53,154,255,.14)}
+.gsl-smart-item b{display:block;font-size:13px}.gsl-smart-item small{display:block;color:#9db0c3;font-size:11px;margin-top:2px}
+.gsl-smart-empty{padding:10px 12px;color:#9db0c3;font-size:12px}
+.gsl-smart-hint{font-size:10px;color:#7f93a7;margin-top:3px}
+@media(max-width:720px){.gsl-smart-list{max-height:210px}}

@@ -18,8 +18,9 @@
 <link rel="stylesheet" href="v14_extension.css?v=15.0.0">
 <link rel="stylesheet" href="v15_extension.css?v=16.0.0">
 <link rel="stylesheet" href="v16_extension.css?v=16.0.0">
-<link rel="stylesheet" href="v16_2_extension.css?v=16.4.0">
-<link rel="stylesheet" href="v16_4_extension.css?v=16.4.0">
+<link rel="stylesheet" href="v16_2_extension.css?v=16.5.0">
+<link rel="stylesheet" href="v16_4_extension.css?v=16.5.0">
+<link rel="stylesheet" href="v16_5_auto_panel.css?v=16.5.0">
 </head>
 <body>
 <div id="iosInstallBanner" class="ios-install-banner" hidden>
@@ -837,13 +838,13 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 <script src="https://unpkg.com/esri-leaflet@3.0.15/dist/esri-leaflet.js"></script>
-<script src="app.js?v=16.4.0"></script>
-<script src="v14_config.js?v=16.4.0"></script>
-<script src="v14_extension.js?v=16.4.0"></script>
-<script src="ubigeo_freight.js?v=16.4.0"></script>
-<script src="v15_extension.js?v=16.4.0"></script>
-<script src="v16_extension.js?v=16.4.0"></script>
-<script src="v16_2_extension.js?v=16.4.0"></script>
+<script src="app.js?v=16.6.0"></script>
+<script src="v14_config.js?v=16.6.0"></script>
+<script src="v14_extension.js?v=16.6.0"></script>
+<script src="ubigeo_freight.js?v=16.6.0"></script>
+<script src="v15_extension.js?v=16.6.0"></script>
+<script src="v16_extension.js?v=16.6.0"></script>
+<script src="v16_2_extension.js?v=16.6.0"></script>
 
 <script>
 (function(){
@@ -854,9 +855,12 @@
   const b=document.getElementById('iosInstallBanner');
   if(b && isIOS && isSafari && !standalone && !dismissed) b.hidden=false;
   document.getElementById('iosInstallClose')?.addEventListener('click',()=>{b.hidden=true;localStorage.setItem('gs_ios_install_dismissed','1')});
-  if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=16.4').catch(console.warn));}
+  if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=16.6').catch(console.warn));}
 })();
 </script>
-<script src="v16_4_extension.js?v=16.4.0"></script>
+<script src="v16_4_extension.js?v=16.6.0"></script>
+<script src="v16_5_auto_panel.js?v=16.6.0"></script>
+<link rel="stylesheet" href="v16_6_smart_inputs.css?v=16.6.0">
+<script src="v16_6_smart_inputs.js?v=16.6.0"></script>
 </body>
 </html>
