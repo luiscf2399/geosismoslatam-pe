@@ -1,8 +1,8 @@
-const CACHE='geosismos-v16-6-pwa-20260824';
+const CACHE='geosismos-v16-8';
 const CORE=[
-  './','./index.html','./styles.css','./app.js?v=16.6.0','./logo.svg','./clif_logo.jpg','./manifest.webmanifest',
-  './v14_extension.css','./v15_extension.css','./v16_extension.css','./v16_2_extension.css','./v16_4_extension.css','./v16_5_auto_panel.css','./v16_6_smart_inputs.css?v=16.6.0',
-  './v14_config.js?v=16.6.0','./v14_extension.js?v=16.6.0','./ubigeo_freight.js?v=16.6.0','./v15_extension.js?v=16.6.0','./v16_extension.js?v=16.6.0','./v16_2_extension.js?v=16.6.0','./v16_4_extension.js?v=16.6.0','./v16_5_auto_panel.js?v=16.6.0','./v16_6_smart_inputs.js?v=16.6.0',
+  './','./index.html','./styles.css','./app.js?v=16.8.0','./logo.svg','./clif_logo.jpg','./manifest.webmanifest',
+  './v14_extension.css','./v15_extension.css','./v16_extension.css','./v16_2_extension.css','./v16_4_extension.css','./v16_5_auto_panel.css','./v16_6_smart_inputs.css?v=16.8.0','./v16_8_reliability.css?v=16.8.0',
+  './v14_config.js?v=16.8.0','./v14_extension.js?v=16.8.0','./ubigeo_freight.js?v=16.8.0','./v15_extension.js?v=16.8.0','./v16_extension.js?v=16.8.0','./v16_2_extension.js?v=16.8.0','./v16_4_extension.js?v=16.8.0','./v16_5_auto_panel.js?v=16.8.0','./v16_6_smart_inputs.js?v=16.8.0','./v16_8_reliability.js?v=16.8.0',
   './ubigeo_inei_2025.csv','./icons/apple-touch-icon-180.png','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png'
 ];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)).catch(()=>{}))});

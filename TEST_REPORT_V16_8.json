@@ -1,0 +1,34 @@
+{
+  "html_ids": 206,
+  "duplicate_ids": [],
+  "asset_refs_checked": 23,
+  "missing_assets": [],
+  "javascript_files_checked": 13,
+  "javascript_syntax_failures": [],
+  "required_controls": {
+    "roadMap": true,
+    "routeOrigin": true,
+    "routeDestination": true,
+    "routeDraw": true,
+    "agriMap": true,
+    "agriCropSelect": true,
+    "marketZone": true,
+    "marketProduct": true,
+    "freightOriginRegion": true,
+    "freightDestinationRegion": true,
+    "freightTons": true,
+    "freightCalc": true,
+    "riskMap": true,
+    "emergencyCount": true
+  },
+  "required_worker_endpoints": {
+    "/api/route": true,
+    "/api/freight": true,
+    "/api/fuel": true,
+    "/api/markets": true,
+    "/api/agriculture": true,
+    "/api/roads": true,
+    "/api/emergencies": true,
+    "/api/presence": true
+  }
+}

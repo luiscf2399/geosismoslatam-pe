@@ -544,24 +544,53 @@ const FREIGHT_CALIBRATION=[
   {name:'Ecarggo · retorno Arequipa–Lima 20 t',rateTonKm:1800/(20*1000),kind:'oferta pública/backhaul',url:'https://ecarggo.com/',weight:1}
 ];
 function weightedRate(){const a=[];for(const x of FREIGHT_CALIBRATION)for(let i=0;i<x.weight;i++)a.push(x.rateTonKm);a.sort((x,y)=>x-y);return a[Math.floor(a.length/2)]||0.23}
-async function routeApi(request){
-  const u=new URL(request.url),origin=(u.searchParams.get('origin')||'').slice(0,120),destination=(u.searchParams.get('destination')||'').slice(0,120),stops=(u.searchParams.get('stops')||'').split('|').map(x=>x.trim()).filter(Boolean).slice(0,3);
-  if(!origin||!destination)return json({ok:false,error:'Falta origen o destino'},400);
+function decodeGooglePolyline(str){
+  let index=0,lat=0,lng=0,coords=[];
+  while(index<str.length){
+    let b,shift=0,result=0;do{b=str.charCodeAt(index++)-63;result|=(b&0x1f)<<shift;shift+=5}while(b>=0x20);lat+=(result&1)?~(result>>1):(result>>1);
+    shift=0;result=0;do{b=str.charCodeAt(index++)-63;result|=(b&0x1f)<<shift;shift+=5}while(b>=0x20);lng+=(result&1)?~(result>>1):(result>>1);coords.push([lng/1e5,lat/1e5]);
+  } return {type:'LineString',coordinates:coords};
+}
+async function routeCore(origin,destination,stops=[],env={}){
   const places=await Promise.all([origin,...stops,destination].map(geocodePlace));
+  const key=env?.GOOGLE_MAPS_API_KEY||env?.GOOGLE_PLACES_API_KEY;
+  if(key){
+    try{
+      const way=p=>({location:{latLng:{latitude:p.lat,longitude:p.lon}}});
+      const body={origin:way(places[0]),destination:way(places[places.length-1]),travelMode:'DRIVE',routingPreference:'TRAFFIC_AWARE'};
+      if(places.length>2)body.intermediates=places.slice(1,-1).map(way);
+      const gr=await fetch('https://routes.googleapis.com/directions/v2:computeRoutes',{method:'POST',headers:{'Content-Type':'application/json','X-Goog-Api-Key':key,'X-Goog-FieldMask':'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline'},body:JSON.stringify(body)});
+      if(gr.ok){const gj=await gr.json(),r=gj.routes?.[0];if(r){return {provider:'Google Routes',places,distanceKm:r.distanceMeters/1000,durationMin:parseFloat(String(r.duration||'0').replace('s',''))/60,geometry:decodeGooglePolyline(r.polyline?.encodedPolyline||'')}}}
+    }catch{}
+  }
   const coords=places.map(p=>`${p.lon},${p.lat}`).join(';');
   const rr=await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false`);if(!rr.ok)throw new Error('route');
-  const rj=await rr.json(),r=rj.routes?.[0];if(!r)return json({ok:false,error:'No se encontró ruta vial'},404);
-  return json({ok:true,places,distanceKm:r.distance/1000,durationMin:r.duration/60,geometry:r.geometry},200,{'Cache-Control':'no-store'});
+  const rj=await rr.json(),r=rj.routes?.[0];if(!r)throw new Error('route');
+  return {provider:'OSRM respaldo',places,distanceKm:r.distance/1000,durationMin:r.duration/60,geometry:r.geometry};
 }
-async function freightV15(request){
-  const u=new URL(request.url),origin=(u.searchParams.get('origin')||'').slice(0,100),destination=(u.searchParams.get('destination')||'').slice(0,100),tons=Math.max(1,Math.min(60,+u.searchParams.get('tons')||20));
+async function routeApi(request,env){
+  const u=new URL(request.url),origin=(u.searchParams.get('origin')||'').slice(0,160),destination=(u.searchParams.get('destination')||'').slice(0,160),stops=(u.searchParams.get('stops')||'').split('|').map(x=>x.trim()).filter(Boolean).slice(0,3);
   if(!origin||!destination)return json({ok:false,error:'Falta origen o destino'},400);
-  const [a,b]=await Promise.all([geocodePlace(origin),geocodePlace(destination)]);
-  const rr=await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=false`);if(!rr.ok)throw new Error('route');const rj=await rr.json();const km=(rj.routes?.[0]?.distance||0)/1000;if(!km)throw new Error('route');
-  const midRate=weightedRate(), lowRate=Math.max(.10,midRate*.68), highRate=midRate*1.42;
-  const operationalFactor=tons<10?1.18:tons>28?1.08:1.0;
-  const low=km*tons*lowRate*operationalFactor, mid=km*tons*midRate*operationalFactor, high=km*tons*highRate*operationalFactor;
-  return json({ok:true,origin,destination,distanceKm:km,tons,low,mid,high,rateTonKm:midRate,basis:FREIGHT_CALIBRATION,note:'Calculadora experimental calibrada con valores referenciales MTC/SUNAT y cotizaciones/ofertas públicas de transporte. Es una referencia de mercado: peajes, refrigeración, estiba, retorno vacío, espera, seguros, combustible y negociación pueden variar el precio final.'},200,{'Cache-Control':'no-store'});
+  try{const r=await routeCore(origin,destination,stops,env);return json({ok:true,...r},200,{'Cache-Control':'no-store'});}catch{return json({ok:false,error:'No se encontró una ruta vial. Selecciona una sugerencia del buscador o marca ambos puntos en el mapa.'},404)}
+}
+
+// Calibración experimental: Bella Unión -> Lima ~535.6 km y referencia del usuario S/0.10–0.15/kg.
+// Centro S/0.125/kg => S/0.0002334 por kg-km. La distancia real de la ruta escala el costo.
+const FREIGHT_REF_KM=535.6, FREIGHT_REF_KG=0.125, DIESEL_REF_S_GAL=15.50;
+function freightRatePerKg(km,diesel,tons){
+  const distanceFactor=Math.pow(Math.max(20,km)/FREIGHT_REF_KM,0.92);
+  const fuelFactor=0.45+0.55*(Math.max(8,Math.min(30,diesel))/DIESEL_REF_S_GAL); // combustible ~55% del componente variable
+  const loadFactor=tons>=25?0.94:tons>=15?1:tons>=8?1.10:1.25;
+  return FREIGHT_REF_KG*distanceFactor*fuelFactor*loadFactor;
+}
+async function freightV15(request,env){
+  const u=new URL(request.url),origin=(u.searchParams.get('origin')||'').slice(0,160),destination=(u.searchParams.get('destination')||'').slice(0,160),tons=Math.max(.1,Math.min(60,+u.searchParams.get('tons')||20));
+  const diesel=Math.max(8,Math.min(30,+u.searchParams.get('diesel')||+(env?.DIESEL_PRICE_PER_GAL||DIESEL_REF_S_GAL)));
+  if(!origin||!destination)return json({ok:false,error:'Falta origen o destino'},400);
+  try{
+    const route=await routeCore(origin,destination,[],env),km=route.distanceKm,midKg=freightRatePerKg(km,diesel,tons),lowKg=midKg*.82,highKg=midKg*1.18,totalKg=tons*1000;
+    return json({ok:true,origin,destination,provider:route.provider,distanceKm:km,durationMin:route.durationMin,tons,diesel,rateKg:midKg,lowRateKg:lowKg,highRateKg:highKg,low:lowKg*totalKg,mid:midKg*totalKg,high:highKg*totalKg,formula:'Tarifa/kg = 0.125 × (distancia/535.6)^0.92 × [0.45 + 0.55×(diésel/15.50)] × factor de carga',basis:[{name:'Calibración Bella Unión–Lima',url:'https://www.rome2rio.com/es/s/Bella-Uni%C3%B3n-Per%C3%BA/Lima',kind:'distancia de referencia'},{name:'OSINERGMIN Facilito',url:'https://www.facilito.gob.pe/',kind:'combustible de referencia'}],note:'Estimación experimental para carga terrestre. Se calibra a S/0.10–0.15 por kg en Bella Unión–Lima (centro S/0.125/kg) y ajusta distancia, precio de diésel y tamaño de carga. No incluye de forma exacta peajes, refrigeración, estiba, seguros, espera, retorno vacío ni negociación.'},200,{'Cache-Control':'no-store'});
+  }catch{return json({ok:false,error:'No se pudo calcular la ruta. Selecciona ubicaciones de las sugerencias o marca los puntos en el mapa.'},404)}
 }
 function publicSourceType(domain=''){const d=domain.toLowerCase();return /facebook\.com|instagram\.com|tiktok\.com|t\.me|telegram\.me|youtube\.com|x\.com|twitter\.com/.test(d)?'social':'news'}
 async function agriSignals(request,ctx){
@@ -644,6 +673,129 @@ async function placeReverse(request){
   const j=await r.json();
   return json({ok:true,label:j.display_name||`${lat.toFixed(5)}, ${lon.toFixed(5)}`,lat,lon},200,{'Cache-Control':'public, max-age=86400'});
 }
+
+
+// ===== V16.8: presencia, combustible automático y PCM dinámico =====
+function normSimple(s=''){
+  return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9 ]+/g,' ').replace(/\s+/g,' ').trim();
+}
+async function loadUbigeoAsset(env,requestUrl){
+  try{
+    const u=new URL('/ubigeo_inei_2025.csv',requestUrl);
+    const r=await env.ASSETS.fetch(new Request(u));
+    if(!r.ok)return [];
+    const txt=await r.text();
+    const lines=txt.replace(/^\uFEFF/,'').split(/\r?\n/).filter(Boolean);
+    const out=[];
+    for(const line of lines.slice(1)){
+      const c=line.split(';'); if(c.length<10)continue;
+      out.push({department:c[0],province:c[1],district:c[2],ubigeo:c[3],lat:+c[8],lon:+c[9]});
+    }
+    return out;
+  }catch{return []}
+}
+function daysRemaining(end){return Math.ceil((Date.parse(end)-Date.now())/86400000)}
+async function discoverPcmEmergencyNorms(request,ctx,env){
+  const cacheKey='https://cache.geosismoslatam.pe/pcm/emergencies-v16-8';
+  return cachedJson(cacheKey,1800,ctx,async()=>{
+    const pages=['https://www.gob.pe/institucion/pcm/normas-legales/tipos/9-decreto-supremo','https://www.gob.pe/institucion/pcm/normas-legales/tipos/9-decreto-supremo?sheet=2'];
+    const links=[];
+    for(const p of pages){
+      try{
+        const r=await fetch(p,{cf:{cacheTtl:1800,cacheEverything:true},headers:{'User-Agent':'GeoSismosLatam/16.8'}}); if(!r.ok)continue;
+        const h=await r.text();
+        for(const m of h.matchAll(/href=["']([^"']*\/institucion\/pcm\/normas-legales\/[^"']+)["'][^>]*>([\s\S]{0,650}?)<\/a>/gi)){
+          const txt=normSimple(stripTags(m[2]));
+          if(txt.includes('ESTADO DE EMERGENCIA')) links.push(new URL(m[1],'https://www.gob.pe').href);
+        }
+      }catch{}
+    }
+    const uniq=[...new Set(links)].slice(0,24), ub=await loadUbigeoAsset(env,request.url), declarations=[],districts=[];
+    for(const url of uniq){
+      try{
+        const r=await fetch(url,{cf:{cacheTtl:1800,cacheEverything:true},headers:{'User-Agent':'GeoSismosLatam/16.8'}});if(!r.ok)continue;
+        const html=await r.text(), text=stripTags(html).replace(/\s+/g,' '), nt=normSimple(text);
+        const dec=(text.match(/Decreto Supremo N[.°º\s]*([0-9]{2,3}-2026-PCM)/i)||[])[1]; if(!dec)continue;
+        const pub=(text.match(/(\d{1,2}) de (enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre) de 2026/i)||[]);
+        const months={enero:0,febrero:1,marzo:2,abril:3,mayo:4,junio:5,julio:6,agosto:7,septiembre:8,octubre:9,noviembre:10,diciembre:11};
+        let start=Date.now(); if(pub.length){start=Date.UTC(2026,months[pub[2].toLowerCase()],+pub[1],5,0,0)}
+        const dm=(text.match(/(?:plazo|término|termino) de\s*(\d{1,3})\s*d[ií]as calendario/i)||[])[1]; const duration=Math.max(1,Math.min(180,+dm||60));
+        const end=new Date(start+duration*86400000).toISOString(); if(Date.parse(end)<Date.now()-86400000)continue;
+        const title=(text.match(/Decreto Supremo que\s+([^\.]{20,500})/i)||[])[1]||'Estado de Emergencia';
+        const cause=title.slice(0,350).trim(); const matched=[];
+        const first=nt.slice(0,22000);
+        for(const row of ub){
+          const d=normSimple(row.district),p=normSimple(row.province),dep=normSimple(row.department);
+          if(d.length<3)continue;
+          const districtHit=first.includes('DISTRITO DE '+d)||first.includes('DISTRITOS DE '+d);
+          const provinceHit=first.includes('PROVINCIA DE '+p)&&first.includes(dep);
+          if(districtHit||provinceHit) matched.push({...row,decree:dec,cause,start:new Date(start).toISOString(),end,official:url,daysRemaining:daysRemaining(end),dynamic:true});
+        }
+        declarations.push({decree:dec,cause,start:new Date(start).toISOString(),end,official:url,count:matched.length,dynamic:true,durationDays:duration});
+        districts.push(...matched);
+      }catch{}
+    }
+    return {declarations,districts};
+  });
+}
+async function emergenciesV168(request,ctx,env){
+  const base=await emergencies(request,ctx,env).catch(()=>({ok:true,declarations:[],districts:[],errors:[]}));
+  const dyn=await discoverPcmEmergencyNorms(request,ctx,env).catch(()=>({declarations:[],districts:[]}));
+  const dmap=new Map();
+  for(const d of [...(base.declarations||[]),...(dyn.declarations||[])]) dmap.set(d.decree,d);
+  const xmap=new Map();
+  for(const x of [...(base.districts||[]),...(dyn.districts||[])]){
+    const k=[normSimple(x.department),normSimple(x.province),normSimple(x.district),x.decree].join('|');
+    xmap.set(k,{...x,daysRemaining:daysRemaining(x.end),status:daysRemaining(x.end)<=10?'por_vencer':'vigente'});
+  }
+  return json({ok:true,generatedAt:Date.now(),source:'PCM / gob.pe + declaratorias verificadas',declarations:[...dmap.values()],districts:[...xmap.values()].filter(x=>x.daysRemaining>=0),errors:base.errors||[]},200,{'Cache-Control':'public, max-age=900'});
+}
+
+function parseCsvLine(line,sep=','){
+  const out=[];let cur='',q=false;
+  for(let i=0;i<line.length;i++){const ch=line[i]; if(ch==='"'){if(q&&line[i+1]==='"'){cur+='"';i++}else q=!q}else if(ch===sep&&!q){out.push(cur);cur=''}else cur+=ch} out.push(cur); return out;
+}
+async function discoverFuelCsvUrl(){
+  const pages=['https://www.datosabiertos.gob.pe/dataset/lista-de-precios-de-combustibles-diaria-reconstruida-partir-de-los-precios-actualizados-0','https://www.datosabiertos.gob.pe/dataset/registro-de-precios-de-distribuidores-minoristas-de-combustibles-l%C3%ADquidos'];
+  for(const p of pages){try{const r=await fetch(p,{headers:{'User-Agent':'GeoSismosLatam/16.8'},cf:{cacheTtl:86400,cacheEverything:true}});if(!r.ok)continue;const h=await r.text();const m=h.match(/href=["']([^"']+\.csv(?:\?[^"']*)?)["']/i);if(m)return new URL(m[1],p).href}catch{}}
+  return null;
+}
+async function fuelFromOfficial(origin,request,env){
+  const place=await geocodePlace(origin), label=normSimple(place.label||origin);
+  let csvUrl=env?.OSINERGMIN_FUEL_CSV_URL||null; if(!csvUrl)csvUrl=await discoverFuelCsvUrl();
+  if(csvUrl){
+    try{
+      const r=await fetch(csvUrl,{cf:{cacheTtl:21600,cacheEverything:true},headers:{'User-Agent':'GeoSismosLatam/16.8'}});if(r.ok){
+        const txt=await r.text(), lines=txt.split(/\r?\n/).filter(Boolean), sep=(lines[0].split(';').length>lines[0].split(',').length?';':',');
+        const hdr=parseCsvLine(lines[0],sep).map(normSimple); const ix=(names)=>{for(const n of names){const i=hdr.findIndex(h=>h.includes(n));if(i>=0)return i}return -1};
+        const iDies=ix(['DIESEL']),iDist=ix(['DISTRITO']),iProv=ix(['PROVINCIA']),iDep=ix(['DEPARTAMENTO']),iLat=ix(['LATITUD']),iLon=ix(['LONGITUD']),iName=ix(['ESTABLECIMIENTO','LOCAL','NOMBRE']);
+        let best=null;
+        for(const line of lines.slice(1)){
+          const c=parseCsvLine(line,sep); const price=+(String(c[iDies]||'').replace(',','.').match(/\d+(?:\.\d+)?/)||[])[0]; if(!(price>5&&price<40))continue;
+          const d=normSimple(c[iDist]||''),p=normSimple(c[iProv]||''),dep=normSimple(c[iDep]||''); let score=0;
+          if(d&&label.includes(d))score+=100;if(p&&label.includes(p))score+=40;if(dep&&label.includes(dep))score+=15;
+          const lat=+c[iLat],lon=+c[iLon]; if(Number.isFinite(lat)&&Number.isFinite(lon)){const dy=(lat-place.lat)*111,dx=(lon-place.lon)*111*Math.cos(place.lat*Math.PI/180),km=Math.hypot(dx,dy);score+=Math.max(0,30-km);}
+          if(!best||score>best.score)best={score,price,name:c[iName]||'Estación reportada',district:c[iDist]||'',province:c[iProv]||'',department:c[iDep]||'',lat:Number.isFinite(lat)?lat:null,lon:Number.isFinite(lon)?lon:null};
+        }
+        if(best)return {ok:true,price:best.price,station:best.name,location:[best.district,best.province,best.department].filter(Boolean).join(' · '),source:'OSINERGMIN / Datos Abiertos (PRICE/Facilito)',sourceUrl:csvUrl,mode:best.score>=100?'mismo_distrito':'mas_cercano_disponible',official:true,lat:best.lat,lon:best.lon};
+      }}catch{}
+  }
+  const fallback=+(env?.DIESEL_PRICE_PER_GAL||DIESEL_REF_S_GAL);
+  return {ok:true,price:fallback,station:'Referencia automática de respaldo',location:place.label||origin,source:'Respaldo GeoSismosLatam; OSINERGMIN temporalmente no accesible',sourceUrl:'https://www.facilito.gob.pe/',mode:'fallback',official:false};
+}
+async function fuelApi(request,env){const u=new URL(request.url),origin=(u.searchParams.get('origin')||'').slice(0,180);if(!origin)return json({ok:false,error:'Falta origen'},400);return json(await fuelFromOfficial(origin,request,env),200,{'Cache-Control':'public, max-age=1800'});}
+async function freightV168(request,env){
+  const u=new URL(request.url),origin=(u.searchParams.get('origin')||'').slice(0,160),destination=(u.searchParams.get('destination')||'').slice(0,160),tons=Math.max(.1,Math.min(60,+u.searchParams.get('tons')||20));if(!origin||!destination)return json({ok:false,error:'Falta origen o destino'},400);
+  try{const manual=+u.searchParams.get('diesel');const [route,autoFuel]=await Promise.all([routeCore(origin,destination,[],env),fuelFromOfficial(origin,request,env)]);const fuel=(manual>=8&&manual<=30)?{...autoFuel,price:manual,station:'Valor manual avanzado',source:'Ingresado por el usuario',official:false,mode:'manual'}:autoFuel;const km=route.distanceKm,diesel=fuel.price,midKg=freightRatePerKg(km,diesel,tons),lowKg=midKg*.82,highKg=midKg*1.18,totalKg=tons*1000;
+    return json({ok:true,origin,destination,provider:route.provider,distanceKm:km,durationMin:route.durationMin,tons,diesel,fuel,rateKg:midKg,lowRateKg:lowKg,highRateKg:highKg,low:lowKg*totalKg,mid:midKg*totalKg,high:highKg*totalKg,formula:'Tarifa/kg = 0.125 × (distancia/535.6)^0.92 × [0.45 + 0.55×(diésel/15.50)] × factor de carga',note:'Estimación experimental calibrada con referencia Bella Unión–Lima y ajustada por distancia, carga y precio automático de diésel. No reemplaza una cotización contractual.'},200,{'Cache-Control':'no-store'});
+  }catch(e){return json({ok:false,error:'No se pudo calcular ruta/flete',detail:String(e?.message||e)},404)}
+}
+async function presenceApi(request,env){
+  if(!env?.DB)return json({ok:true,online:1,mode:'local'});
+  const u=new URL(request.url),sid=(u.searchParams.get('sid')||'').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,64)||crypto.randomUUID().replace(/-/g,''); const now=Date.now(),cut=now-120000;
+  try{await env.DB.prepare('CREATE TABLE IF NOT EXISTS online_sessions (session_id TEXT PRIMARY KEY, last_seen INTEGER NOT NULL)').run();await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_online_sessions_last_seen ON online_sessions(last_seen)').run();await env.DB.prepare('INSERT INTO online_sessions(session_id,last_seen) VALUES(?1,?2) ON CONFLICT(session_id) DO UPDATE SET last_seen=excluded.last_seen').bind(sid,now).run();await env.DB.prepare('DELETE FROM online_sessions WHERE last_seen < ?1').bind(now-3600000).run();const row=await env.DB.prepare('SELECT COUNT(*) AS n FROM online_sessions WHERE last_seen >= ?1').bind(cut).first();return json({ok:true,online:+(row?.n||1),sid,windowSeconds:120},200,{'Cache-Control':'no-store'});}catch{return json({ok:true,online:1,sid,mode:'fallback'})}
+}
+
 export default {
   async fetch(request,env,ctx){
     if(request.method==="OPTIONS") return new Response(null,{status:204,headers:cors});
@@ -654,17 +806,19 @@ export default {
         const home=new URL("/index.html",request.url);
         return env.ASSETS.fetch(new Request(home,request));
       }
-      if(u.pathname==="/api/health") return json({ok:true,time:Date.now(),service:"GeoSismosLatam API v16.3"});
-      if(u.pathname==="/api/emergencies") return emergencies(request,ctx,env);
+      if(u.pathname==="/api/health") return json({ok:true,time:Date.now(),service:"GeoSismosLatam API v16.8"});
+      if(u.pathname==="/api/emergencies") return emergenciesV168(request,ctx,env);
       if(u.pathname==="/api/enfen") return enfen(ctx,env);
       if(u.pathname==="/api/agriculture") return agriculture(ctx,env);
       if(u.pathname==="/api/roads") return roads(ctx);
       if(u.pathname==="/api/markets") return markets(request,ctx);
-      if(u.pathname==="/api/freight") return freightV15(request);
+      if(u.pathname==="/api/freight") return freightV168(request,env);
+      if(u.pathname==="/api/fuel") return fuelApi(request,env);
+      if(u.pathname==="/api/presence") return presenceApi(request,env);
       if(u.pathname==="/api/place-search") return placeSearch(request,env);
       if(u.pathname==="/api/place-detail") return placeDetail(request,env);
       if(u.pathname==="/api/place-reverse") return placeReverse(request);
-      if(u.pathname==="/api/route") return routeApi(request);
+      if(u.pathname==="/api/route") return routeApi(request,env);
       if(u.pathname==="/api/agri-signals") return agriSignals(request,ctx);
       if(u.pathname==="/api/marine/summary") return marineSummary(request);
       if(u.pathname==="/api/noaa/geocolor") return noaaGeoColor(ctx);

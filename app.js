@@ -797,8 +797,9 @@ async function showEmergencyLayer(filterCause='all'){
       const m=emergencyMatch(f,data);
       if(!m)return {color:'#5f7788',weight:.25,fillOpacity:0};
       if(filterCause==='elnino'&&!normTxt(m.cause).includes('NINO'))return {color:'#5f7788',weight:.2,fillOpacity:0};
-      const name=geoNames(f.properties||{}),fill=hashColor(name.ubigeo||name.dist+name.prov);
-      return {color:causeBorder(m.cause),weight:1.6,fillColor:fill,fillOpacity:.62};
+      const days=Math.max(0,Math.ceil((Date.parse(m.end)-Date.now())/86400000));
+      const fill=days<=10?'#ef8c32':'#d83a3a';
+      return {color:'#ffffff',weight:1.1,fillColor:fill,fillOpacity:.68};
     },
     onEachFeature:(f,l)=>{
       const m=emergencyMatch(f,data);if(!m)return;
@@ -807,7 +808,7 @@ async function showEmergencyLayer(filterCause='all'){
         const days=Math.max(0,Math.ceil((Date.parse(m.end)-Date.now())/86400000));
         $('riskInfoTitle').textContent=`${n.dist||m.district} · Estado de Emergencia`;
         $('riskInfoText').textContent=m.cause;
-        $('riskInfoFacts').innerHTML=`<span>Departamento</span><b>${esc(n.dep||m.department||'—')}</b><span>Provincia</span><b>${esc(n.prov||m.province||'—')}</b><span>Decreto</span><b>${esc(m.decree)}</b><span>Vigencia restante</span><b>${days} días aprox.</b><span>Fin configurado</span><b>${new Date(m.end).toLocaleDateString('es-PE')}</b>`;
+        $('riskInfoFacts').innerHTML=`<span>Departamento</span><b>${esc(n.dep||m.department||'—')}</b><span>Provincia</span><b>${esc(n.prov||m.province||'—')}</b><span>Decreto</span><b>${esc(m.decree)}</b><span>Plazo restante</span><b>${days} día${days===1?'':'s'}</b><span>Fecha de culminación</span><b>${new Date(m.end).toLocaleDateString('es-PE')}</b><span>Estado</span><b>${days<=10?'POR VENCER':'VIGENTE'}</b>`;
         $('riskInfoLinks').innerHTML=`<a target="_blank" rel="noopener" href="${esc(m.official)}">Ver norma oficial ↗</a>`;
       });
       l.bindTooltip(`${n.dist||m.district} · ${m.decree}`,{sticky:true});
@@ -835,7 +836,7 @@ async function loadSigridWatch(){
   }catch(e){$('sigridWatchBadge').textContent='SIN RESPUESTA';$('sigridWatchText').textContent='No fue posible verificar las fuentes SIGRID/CENEPRED en esta consulta.'}
 }
 function riskLegendFor(mode,layer='mass'){
-  if(mode==='emergency') return {modeLabel:'VIGENCIA LEGAL',items:[['#2da7e6','outline','Borde azul','Declaratoria vinculada a lluvias, El Niño u otra causa hídrica configurada.'],['#f0a21a','outline','Borde ámbar','Declaratoria asociada a déficit hídrico.'],['#8b5cf6','','Relleno distrital','Color de identificación territorial; no representa nivel de riesgo.'],['#5f7788','outline','Sin relleno','Distrito no coincidente con declaratoria vigente cargada.']],note:'El color interior permite diferenciar distritos. El borde y la ficha explican la causa y el decreto.'};
+  if(mode==='emergency') return {modeLabel:'VIGENCIA LEGAL',items:[['#d83a3a','','Vigente','Estado de Emergencia con más de 10 días restantes.'],['#ef8c32','','Por vencer','Faltan entre 1 y 10 días para culminar la vigencia cargada.'],['#7a8790','outline','Sin estado vigente','Distrito sin declaratoria vigente identificada en la fuente cargada.']],note:'Haz clic en un distrito coloreado para consultar decreto, causal, fecha de culminación y días restantes.'};
   if(mode==='elnino') return {modeLabel:'EL NIÑO / ESCENARIOS',items:[['#2da7e6','outline','Ámbito vinculado','Declaratoria o escenario vinculado a lluvia/El Niño según fuente cargada.'],['#f0a21a','outline','Déficit hídrico','Ámbito vinculado a déficit hídrico cuando corresponda.'],['#8b5cf6','','Distrito resaltado','Identificación territorial, no intensidad del fenómeno.']],note:'La intensidad y probabilidad de El Niño deben leerse en el comunicado ENFEN y escenario CENEPRED correspondiente.'};
   if(mode==='impacts') return {modeLabel:'AFECTACIONES',items:[['#d83a3a','','Personas / vivienda','Categorías de daño humano o habitacional cuando estén presentes.'],['#ef9f32','','Infraestructura / transporte','Afectaciones a vías, puentes o infraestructura.'],['#5e9fd6','','Servicios / agua','Afectaciones a servicios básicos o hidráulicos.'],['#70a84f','','Agricultura','Daños o afectación de medios de vida agrícolas.']],note:'Solo se pinta información que provenga de una fuente identificada; prensa/redes deben rotularse como no oficiales.'};
   const name={mass:'Movimientos en masa',flood:'Inundación fluvial',hazards:'Peligros geológicos',igp:'Geodinámica IGP'}[layer]||'Peligro territorial';
