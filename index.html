@@ -21,7 +21,6 @@
 <link rel="stylesheet" href="v16_2_extension.css?v=16.5.0">
 <link rel="stylesheet" href="v16_4_extension.css?v=16.5.0">
 <link rel="stylesheet" href="v16_5_auto_panel.css?v=16.5.0">
-<link rel="stylesheet" href="v16_8_reliability.css?v=16.8.0">
 </head>
 <body>
 <div id="iosInstallBanner" class="ios-install-banner" hidden>
@@ -719,18 +718,24 @@
   </section>
 
   <section class="agri-commerce">
-    <div class="section-hero market"><div><span>MERCADOS Y LOGÍSTICA AGRARIA</span><h2>Precios, ingresos de productos y flete referencial</h2><p>Actualización programada desde las 10:00 a. m. (Perú). Los valores oficiales, sondeos y estimaciones experimentales permanecen separados.</p></div></div>
+    <div class="section-hero market"><div><span>MERCADOS Y LOGÍSTICA AGRARIA</span><h2>Reporte diario de mercados y flete referencial</h2><p>Consulta directa por mercado. El panel muestra todos los productos disponibles, su precio diario y las toneladas ingresadas, sin análisis ni proyecciones.</p></div></div>
     <div class="market-grid">
       <article class="panel market-panel">
         <div class="sectionline"><b>PRECIOS E INGRESOS</b><span id="marketUpdated">—</span></div>
-        <div class="market-controls"><select id="marketZone"><option value="lima_gmml">Lima · Gran Mercado Mayorista (GMML)</option><option value="lima_mmp">Lima · Mercado Mayorista de Productores</option><option value="arequipa">Arequipa · mercados regionales</option><option value="piura">Piura · mercado regional</option><option value="lambayeque">Lambayeque / Chiclayo</option><option value="lalibertad">La Libertad / Trujillo</option><option value="north">Norte peruano · consolidado</option></select><input id="marketProduct" placeholder="Producto: papa, cebolla, frijol…"><button id="marketSearch" class="btn primary">CONSULTAR</button></div>
+        <div class="market-controls">
+          <select id="marketZone">
+            <option value="lima_gmml">Lima · Gran Mercado Mayorista (GMML)</option>
+            <option value="lima_mmp">Lima · Mercado Mayorista de Productores</option>
+            <option value="arequipa">Arequipa · mercados regionales</option>
+            <option value="piura">Piura · mercado regional</option>
+            <option value="lambayeque">Lambayeque / Chiclayo</option>
+            <option value="lalibertad">La Libertad / Trujillo</option>
+            <option value="north">Norte peruano · consolidado</option>
+          </select>
+          <button id="marketRefresh" class="btn primary">ACTUALIZAR REPORTE</button>
+        </div>
+        <p class="muted market-help">Selecciona un mercado. Se mostrará automáticamente toda la lista disponible. Si un producto no tiene precio actualizado, se mostrará el <b>último precio encontrado</b> conservando su fecha real.</p>
         <div id="marketTable" class="market-table-wrap"><p class="muted">Cargando fuentes de mercado…</p></div>
-      </article>
-      <article class="panel">
-        <div class="sectionline"><b>MODELO DE SIEMBRA EXPERIMENTAL</b><span class="experimental">MULTIFUENTE</span></div>
-        <div class="metric-grid"><div><span>Señales oficiales</span><b id="seedOfficial">—</b></div><div><span>Señales secundarias</span><b id="seedSecondary">—</b></div><div><span>Confianza</span><b id="seedConfidence">—</b></div><div><span>Actualización</span><b id="seedUpdated">10:00</b></div></div>
-        <p id="seedModelText">El índice combina disponibilidad de datos oficiales, clima, campaña histórica y señales públicas. No representa una estadística oficial ni sustituye encuestas de campo.</p>
-        <div id="seedSources" class="source-list"></div>
       </article>
       <article class="panel freight-panel">
         <div class="sectionline"><b>CALCULADORA EXPERIMENTAL DE FLETE</b><span class="experimental">REFERENCIA DE MERCADO</span></div>
@@ -740,9 +745,9 @@
           <fieldset class="freight-location"><legend>🏁 LUGAR DE LLEGADA</legend><label>Región / departamento</label><select id="freightDestinationRegion"><option>Cargando…</option></select><label>Provincia</label><select id="freightDestinationProvince" disabled><option>Seleccionar provincia</option></select><label>Distrito</label><select id="freightDestinationDistrict" disabled><option>Seleccionar distrito</option></select></fieldset>
         </div>
         <input id="freightOrigin" type="hidden"><input id="freightDestination" type="hidden">
-        <div class="freight-load-row"><div class="freight-load-field"><label for="freightTons">Carga aproximada <b>(toneladas métricas)</b></label><div class="number-unit"><input id="freightTons" type="number" min="0.1" step="0.1" value="20" inputmode="decimal" aria-describedby="freightTonsHelp"><span>t</span></div><small id="freightTonsHelp">Ejemplo: 30 = 30 toneladas = 30 000 kg.</small></div><div class="freight-load-field"><label for="freightDiesel">Diésel referencial <b>(S/ por galón)</b></label><div class="number-unit"><input id="freightDiesel" type="number" min="8" max="30" step="0.01" value="15.50" inputmode="decimal"><span>S//gal</span></div><small>Actualízalo con el precio local de combustible; modifica automáticamente la tarifa/kg.</small></div><button id="freightCalc" class="btn primary">CALCULAR FLETE REFERENCIAL</button></div>
+        <div class="freight-load-row"><div class="freight-load-field"><label for="freightTons">Carga aproximada <b>(toneladas métricas)</b></label><div class="number-unit"><input id="freightTons" type="number" min="0.1" step="0.1" value="20" inputmode="decimal" aria-describedby="freightTonsHelp"><span>t</span></div><small id="freightTonsHelp">Ejemplo: 30 = 30 toneladas = 30 000 kg.</small></div><button id="freightCalc" class="btn primary">CALCULAR FLETE</button></div>
         <div id="freightUbigeoStatus" class="freight-ubigeo-status">Cargando base territorial nacional…</div>
-        <div id="freightResult" class="estimate-box">Selecciona salida, llegada y toneladas. El cálculo promedia referencias públicas de fletes, valores referenciales MTC/SUNAT y rutas logísticas disponibles; no reemplaza la cotización final del transportista.</div>
+        <div id="freightResult" class="estimate-box">Selecciona distrito de salida, distrito de llegada y toneladas. Fórmula: distancia vial × toneladas × S/ 6.55.</div>
       </article>
     </div>
   </section>
@@ -839,13 +844,13 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 <script src="https://unpkg.com/esri-leaflet@3.0.15/dist/esri-leaflet.js"></script>
-<script src="app.js?v=16.8.0"></script>
-<script src="v14_config.js?v=16.8.0"></script>
-<script src="v14_extension.js?v=16.8.0"></script>
-<script src="ubigeo_freight.js?v=16.8.0"></script>
-<script src="v15_extension.js?v=16.8.0"></script>
-<script src="v16_extension.js?v=16.8.0"></script>
-<script src="v16_2_extension.js?v=16.8.0"></script>
+<script src="app.js?v=16.6.0"></script>
+<script src="v14_config.js?v=16.6.0"></script>
+<script src="v14_extension.js?v=16.6.0"></script>
+<script src="ubigeo_freight.js?v=16.6.0"></script>
+<script src="v15_extension.js?v=16.6.0"></script>
+<script src="v16_extension.js?v=16.6.0"></script>
+<script src="v16_2_extension.js?v=16.6.0"></script>
 
 <script>
 (function(){
@@ -856,13 +861,12 @@
   const b=document.getElementById('iosInstallBanner');
   if(b && isIOS && isSafari && !standalone && !dismissed) b.hidden=false;
   document.getElementById('iosInstallClose')?.addEventListener('click',()=>{b.hidden=true;localStorage.setItem('gs_ios_install_dismissed','1')});
-  if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=16.8').catch(console.warn));}
+  if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=16.6').catch(console.warn));}
 })();
 </script>
-<script src="v16_4_extension.js?v=16.8.0"></script>
-<script src="v16_5_auto_panel.js?v=16.8.0"></script>
-<link rel="stylesheet" href="v16_6_smart_inputs.css?v=16.8.0">
-<script src="v16_6_smart_inputs.js?v=16.8.0"></script>
-<script src="v16_8_reliability.js?v=16.8.0"></script>
+<script src="v16_4_extension.js?v=16.6.0"></script>
+<script src="v16_5_auto_panel.js?v=16.6.0"></script>
+<link rel="stylesheet" href="v16_6_smart_inputs.css?v=16.6.0">
+<script src="v16_6_smart_inputs.js?v=16.6.0"></script>
 </body>
 </html>

@@ -8,3 +8,19 @@
 .gsl-smart-empty{padding:10px 12px;color:#9db0c3;font-size:12px}
 .gsl-smart-hint{font-size:10px;color:#7f93a7;margin-top:3px}
 @media(max-width:720px){.gsl-smart-list{max-height:210px}}
+
+/* V16.10 mercados: reporte simple de lista completa */
+.market-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.market-controls select{min-width:320px;flex:1}
+.market-help{margin:8px 0 12px}
+.market-report-title,.market-daily-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin:8px 0}
+.market-daily-head small{opacity:.75}
+.market-table-wrap{overflow:auto;max-height:560px}
+.market-data{width:100%;border-collapse:collapse}
+.market-data th{position:sticky;top:0;z-index:1}
+@media(max-width:700px){.market-controls select{min-width:100%}.market-report-title,.market-daily-head{align-items:flex-start;flex-direction:column}}
+
+/* V16.11: identificación visual de vigencia del precio */
+.market-status{display:inline-block;padding:3px 7px;border-radius:999px;font-size:.72rem;font-weight:700;white-space:nowrap}
+.market-status.current{background:rgba(36,180,126,.16);border:1px solid rgba(36,180,126,.55)}
+.market-status.fallback{background:rgba(255,178,45,.15);border:1px solid rgba(255,178,45,.55)}
