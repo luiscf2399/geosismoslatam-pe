@@ -132,7 +132,7 @@ function bind(){
   $('agriSignalSearch')?.addEventListener('click',loadAgriSignals);$('marineRefresh')?.addEventListener('click',marineRefresh);$('marinePortSelect')?.addEventListener('change',marineRefresh);$('marineNearest')?.addEventListener('click',nearestMarinePort);
   hookFreightDisplay();
   requestGeo().then(g=>{if(g){setTimeout(()=>{Object.values(window.GSL_MAPS||{}).forEach(m=>{if(m){m.setView([g.lat,g.lon],7);putGeoMarker(m)}});if(window.GSL_ROAD_MAP){window.GSL_ROAD_MAP.setView([g.lat,g.lon],8);putGeoMarker(window.GSL_ROAD_MAP)}},500)}});
-  setTimeout(()=>{marineRefresh();loadAgriSignals()},700);
+  setTimeout(()=>{loadAgriSignals()},700);
 }
 document.addEventListener('DOMContentLoaded',bind);
 })();

@@ -642,6 +642,37 @@ async function agriSignals(request,ctx){
   });
 }
 const MARINE_PORTS_V15={Callao:[-12.05,-77.16],Paita:[-5.09,-81.11],Talara:[-4.58,-81.27],Chimbote:[-9.08,-78.59],Huacho:[-11.11,-77.62],Pisco:[-13.71,-76.22],'San Juan':[-15.35,-75.16],Chala:[-15.86,-74.25],Atico:[-16.22,-73.61],Matarani:[-17.00,-72.10],Ilo:[-17.64,-71.34]};
+
+async function marinePro(request){
+  const u=new URL(request.url),port=u.searchParams.get('port')||'Callao',xy=MARINE_PORTS_V15[port]||MARINE_PORTS_V15.Callao,[lat,lon]=xy;
+  const marineUrl='https://marine-api.open-meteo.com/v1/marine?'+new URLSearchParams({
+    latitude:String(lat),longitude:String(lon),timezone:'America/Lima',
+    current:'wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_direction,swell_wave_period,sea_surface_temperature',
+    hourly:'wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_direction,swell_wave_period,sea_surface_temperature',
+    forecast_days:'7'
+  });
+  const weatherUrl='https://api.open-meteo.com/v1/forecast?'+new URLSearchParams({
+    latitude:String(lat),longitude:String(lon),timezone:'America/Lima',
+    current:'wind_speed_10m,wind_direction_10m,wind_gusts_10m,surface_pressure,temperature_2m',
+    hourly:'wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation_probability,surface_pressure',
+    daily:'sunrise,sunset,weather_code,wind_speed_10m_max,wind_gusts_10m_max,precipitation_probability_max',
+    forecast_days:'7'
+  });
+  let marine={},weather={};
+  try{const r=await fetch(marineUrl);if(r.ok)marine=await r.json()}catch{}
+  try{const r=await fetch(weatherUrl);if(r.ok)weather=await r.json()}catch{}
+  if(!marine.current&&!weather.current)return json({ok:false,error:'Fuentes marinas temporalmente no disponibles'},502);
+  return json({
+    ok:true,port,lat,lon,updatedAt:Date.now(),
+    current:marine.current||{},currentUnits:marine.current_units||{},
+    hourly:marine.hourly||{},hourlyUnits:marine.hourly_units||{},
+    weatherCurrent:weather.current||{},weatherHourly:weather.hourly||{},
+    daily:weather.daily||{},
+    officialTideUrl:'https://www.dhn.mil.pe/app/mareas/index.php',
+    sources:['Open-Meteo Marine','Open-Meteo Weather','DHN mareas','PRODUCE/IMARPE']
+  },200,{'Cache-Control':'public, max-age=600'});
+}
+
 async function marineSummary(request){
   const u=new URL(request.url),port=u.searchParams.get('port')||'Callao',xy=MARINE_PORTS_V15[port]||MARINE_PORTS_V15.Callao,[lat,lon]=xy;
   let wave=null,wind=null;
@@ -720,7 +751,7 @@ export default {
         const home=new URL("/index.html",request.url);
         return env.ASSETS.fetch(new Request(home,request));
       }
-      if(u.pathname==="/api/health") return json({ok:true,time:Date.now(),service:"GeoSismosLatam API v16.3"});
+      if(u.pathname==="/api/health") return json({ok:true,time:Date.now(),service:"GeoSismosLatam API v16.12"});
       if(u.pathname==="/api/emergencies") return emergencies(request,ctx,env);
       if(u.pathname==="/api/enfen") return enfen(ctx,env);
       if(u.pathname==="/api/agriculture") return agriculture(ctx,env);
@@ -732,6 +763,7 @@ export default {
       if(u.pathname==="/api/place-reverse") return placeReverse(request);
       if(u.pathname==="/api/route") return routeApi(request,env);
       if(u.pathname==="/api/agri-signals") return agriSignals(request,ctx);
+      if(u.pathname==="/api/marine/pro") return marinePro(request);
       if(u.pathname==="/api/marine/summary") return marineSummary(request);
       if(u.pathname==="/api/noaa/geocolor") return noaaGeoColor(ctx);
       if(u.pathname==="/api/noaa/cfsv2/precip") return noaaCfsv2Precip(request,ctx);

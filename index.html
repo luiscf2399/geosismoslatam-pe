@@ -21,6 +21,7 @@
 <link rel="stylesheet" href="v16_2_extension.css?v=16.5.0">
 <link rel="stylesheet" href="v16_4_extension.css?v=16.5.0">
 <link rel="stylesheet" href="v16_5_auto_panel.css?v=16.5.0">
+<link rel="stylesheet" href="marine_pro.css?v=16.12">
 </head>
 <body>
 <div id="iosInstallBanner" class="ios-install-banner" hidden>
@@ -382,112 +383,142 @@
 </section>
 
 
-<section id="marine" class="view">
-  <div class="section-hero marine">
-    <div>
-      <span>MAR, MAREAS Y PESCA RESPONSABLE</span>
-      <h2>Litoral peruano: mareas, condiciones del mar y pesca recreativa consciente</h2>
-      <p>Consulta información oceanográfica oficial y recomendaciones de conservación antes de planificar actividades costeras.</p>
+<section id="marine" class="view marine-pro-view">
+  <div class="marine-pro-shell">
+    <header class="marine-pro-top">
+      <div>
+        <span class="marine-kicker">MAR & PESCA · GEOSISMOSLATAM</span>
+        <h2>Planificador marítimo y de pesca recreativa</h2>
+        <p>Oleaje, viento, mareas oficiales, condiciones meteorológicas y orientación de pesca en una sola pantalla.</p>
+      </div>
+      <div class="marine-actions">
+        <select id="marineProPort">
+          <option>Callao</option><option>Paita</option><option>Talara</option><option>Chimbote</option>
+          <option>Huacho</option><option>Pisco</option><option>San Juan</option><option>Chala</option>
+          <option>Atico</option><option>Matarani</option><option>Ilo</option>
+        </select>
+        <button id="marineProNearest" class="btn">⌖ CERCA DE MÍ</button>
+        <button id="marineProRefresh" class="btn primary">↻ ACTUALIZAR</button>
+      </div>
+    </header>
+
+    <div class="marine-pro-status">
+      <div><span>Condición</span><b id="mpCondition">—</b></div>
+      <div><span>Oleaje</span><b id="mpWaveNow">—</b></div>
+      <div><span>Viento</span><b id="mpWindNow">—</b></div>
+      <div><span>Temp. mar</span><b id="mpSeaTemp">—</b></div>
+      <div><span>Presión</span><b id="mpPressure">—</b></div>
+      <div><span>Actividad orientativa</span><b id="mpActivity">—</b></div>
     </div>
-    <div class="source-stack"><b>DHN / DIHIDRONAV</b><b>PRODUCE</b><b>IMARPE</b></div>
-  </div>
 
+    <nav class="marine-pro-tabs" aria-label="Herramientas de mar y pesca">
+      <button class="active" data-marine-tab="overview">RESUMEN</button>
+      <button data-marine-tab="waves">OLEAJE</button>
+      <button data-marine-tab="wind">VIENTO</button>
+      <button data-marine-tab="tides">MAREAS</button>
+      <button data-marine-tab="solunar">SOL / LUNA</button>
+      <button data-marine-tab="map">MAPA</button>
+    </nav>
 
-  <section class="marine-live-grid">
-    <article class="panel marine-live-card">
-      <div class="sectionline"><b>MAREAS Y CONDICIONES PARA PESCA</b><span id="marineLiveUpdated">—</span></div>
-      <div class="marine-live-controls">
-        <select id="marinePortSelect"><option value="Callao">Callao</option><option value="Paita">Paita</option><option value="Talara">Talara</option><option value="Chimbote">Chimbote</option><option value="Huacho">Huacho</option><option value="Pisco">Pisco</option><option value="San Juan">San Juan</option><option value="Chala">Chala</option><option value="Atico">Atico</option><option value="Matarani">Matarani</option><option value="Ilo">Ilo</option></select>
-        <button id="marineNearest" class="btn">⌖ PUERTO MÁS CERCANO</button>
-        <button id="marineRefresh" class="btn primary">↻ ACTUALIZAR</button>
-      </div>
-      <div id="marineLiveSummary" class="marine-summary"><p class="muted">Selecciona un puerto para consultar mareas, estado del mar y referencias de pesca.</p></div>
-    </article>
-    <article class="panel marine-plan-card">
-      <div class="sectionline"><b>PLANIFICACIÓN DE PESCA</b><span class="experimental">ORIENTATIVO</span></div>
-      <div id="fishingForecast" class="fishing-forecast"><p class="muted">La recomendación combina marea, viento/oleaje cuando está disponible y referencias solunares públicas. No garantiza capturas.</p></div>
-      <div class="dual-buttons">
-        <a class="btn primary" target="_blank" rel="noopener" href="https://www.dhn.mil.pe/portal/tabla-mareas">DHN · MAREAS ↗</a>
-        <a class="btn" target="_blank" rel="noopener" href="https://tides4fishing.com/pe">TABLAS SOLUNARES ↗</a>
-      </div>
-    </article>
-  </section>
+    <div class="marine-pro-body">
+      <main class="marine-pro-main">
+        <section class="marine-tab active" data-marine-panel="overview">
+          <div class="marine-overview-grid">
+            <article class="mp-card">
+              <div class="mp-title"><b>PRÓXIMAS 24 HORAS</b><span id="mpUpdated">—</span></div>
+              <canvas id="mpCombinedChart" height="230"></canvas>
+              <div class="mp-chart-legend"><span>━ Oleaje (m)</span><span>·· Viento (km/h)</span></div>
+            </article>
+            <article class="mp-card">
+              <div class="mp-title"><b>RECOMENDACIÓN</b><span>ORIENTATIVA</span></div>
+              <div id="mpRecommendation" class="mp-recommendation">Cargando condiciones…</div>
+              <div id="mpBestTimes" class="mp-best-times"></div>
+            </article>
+          </div>
+          <article class="mp-card">
+            <div class="mp-title"><b>PRONÓSTICO 7 DÍAS</b><span>MAR + TIEMPO</span></div>
+            <div id="mpDailyStrip" class="mp-daily-strip"></div>
+          </article>
+        </section>
 
-  <div class="marine-layout">
-    <section class="map-panel">
-      <div class="map-head">
-        <div><b>PUERTOS Y SECTORES COSTEROS DE CONSULTA</b><small>Ubicaciones referenciales asociadas a puertos con información de mareas DHN</small></div>
-        <div class="segmented mini">
-          <button id="marineNorth">Norte</button>
-          <button id="marineCenter">Centro</button>
-          <button id="marineSouth">Sur</button>
-          <button id="marineAll" class="active">Todo el litoral</button>
-        </div>
-      </div>
-      <div id="marineMap" class="bigmap medium"></div>
-      <div class="marine-legend floating">
-        <b>IMPORTANTE</b>
-        <span>● Marcador = puerto/sector de consulta referencial.</span>
-        <span>No representa una zona oficialmente habilitada para pescar.</span>
-        <span>La Línea de Más Alta Marea (LAM) no se dibuja automáticamente sin cartografía oficial del sector.</span>
-      </div>
-    </section>
+        <section class="marine-tab" data-marine-panel="waves">
+          <article class="mp-card">
+            <div class="mp-title"><b>OLEAJE, MAR DE FONDO Y PERIODO</b><span>7 DÍAS</span></div>
+            <canvas id="mpWaveChart" height="280"></canvas>
+            <div class="mp-scale"><span>0–1 m: bajo</span><span>1–2 m: moderado</span><span>2–3 m: alto</span><span>&gt;3 m: muy alto</span></div>
+          </article>
+          <div id="mpWaveDetails" class="mp-data-grid"></div>
+        </section>
 
-    <aside class="portal-side marine-side">
-      <article class="panel tide-card">
-        <div class="sectionline"><b>MAREAS DEL LITORAL PERUANO</b><span class="official-chip dhn">DHN</span></div>
-        <h3>Pleamar y bajamar por puerto</h3>
-        <p>La DHN publica las horas y alturas previstas de pleamares y bajamares para diversos puertos del Perú, basadas en su Red de Estaciones Mareográficas.</p>
-        <a class="btn primary" target="_blank" rel="noopener" href="https://www.dhn.mil.pe/portal/tabla-mareas">CONSULTAR TABLA DE MAREAS ↗</a>
-      </article>
+        <section class="marine-tab" data-marine-panel="wind">
+          <article class="mp-card">
+            <div class="mp-title"><b>VIENTO Y RÁFAGAS</b><span>7 DÍAS</span></div>
+            <canvas id="mpWindChart" height="280"></canvas>
+          </article>
+          <div id="mpWindDetails" class="mp-data-grid"></div>
+        </section>
 
-      <article class="panel lam-card">
-        <div class="sectionline"><b>LÍNEA DE MÁS ALTA MAREA · LAM</b><span class="official-chip dhn">DHN</span></div>
-        <p><b>¿Qué es?</b> Es la intersección del nivel del mar con la playa durante la pleamar de sicigias ordinarias.</p>
-        <p><b>¿Por qué no la trazamos automáticamente?</b> Su determinación es técnica y sectorial. Depende de observaciones, nivelación y metodología hidrográfica oficial; una línea estimada por GeoSismosLatam podría inducir a error.</p>
-        <div class="lam-note">Cuando exista cartografía oficial pública interoperable de una zona, podrá incorporarse como capa acreditada.</div>
-        <a class="btn" target="_blank" rel="noopener" href="https://www.dhn.mil.pe/portal/oceanografia">VER INFORMACIÓN OCEANOGRÁFICA DHN ↗</a>
-      </article>
+        <section class="marine-tab" data-marine-panel="tides">
+          <article class="mp-card">
+            <div class="mp-title"><b>TABLA OFICIAL DE MAREAS · DHN</b><span>PLEAMAR / BAJAMAR</span></div>
+            <div class="mp-tide-tools">
+              <label>Fecha <input id="mpTideDate" type="date"></label>
+              <button id="mpTideLoad" class="btn primary">VER TABLA</button>
+              <a class="btn" target="_blank" rel="noopener" href="https://www.dhn.mil.pe/app/mareas/index.php">ABRIR DHN ↗</a>
+            </div>
+            <div class="mp-tide-frame-wrap">
+              <iframe id="mpTideFrame" title="Tabla de mareas DHN" loading="lazy" referrerpolicy="no-referrer" src="https://www.dhn.mil.pe/app/mareas/index.php"></iframe>
+              <p class="muted">Si la DHN bloquea la visualización embebida en el navegador, usa “ABRIR DHN”. GeoSismosLatam no altera la predicción oficial.</p>
+            </div>
+          </article>
+        </section>
 
-      <article class="panel sea-state-card">
-        <div class="sectionline"><b>VIENTO Y ESTADO DEL MAR</b><span class="official-chip dhn">DHN</span></div>
-        <img id="marineWindImage" src="/api/dhn/wind" alt="Pronóstico de viento DHN">
-        <p>Antes de salir, consulta viento, oleaje, avisos especiales y condiciones océano-meteorológicas.</p>
-        <a class="btn" target="_blank" rel="noopener" href="https://www.naylamp.dhn.mil.pe/oceano/pronosticos/">VER OLAS Y VIENTO DHN ↗</a>
-      </article>
-    </aside>
-  </div>
+        <section class="marine-tab" data-marine-panel="solunar">
+          <div class="marine-overview-grid">
+            <article class="mp-card">
+              <div class="mp-title"><b>SOL Y LUNA</b><span>ASTRONÓMICO</span></div>
+              <div id="mpAstro" class="mp-astro"></div>
+            </article>
+            <article class="mp-card">
+              <div class="mp-title"><b>VENTANAS ORIENTATIVAS DE PESCA</b><span>EXPERIMENTAL</span></div>
+              <div id="mpSolunarWindows" class="mp-solunar-windows"></div>
+              <p class="muted">Se combinan amanecer/atardecer, fase lunar y condiciones de viento/oleaje. No garantiza captura.</p>
+            </article>
+          </div>
+        </section>
 
-  <div class="fishing-grid">
-    <article class="panel fishing-rules">
-      <div class="sectionline"><b>PESCA DEPORTIVA Y RECREATIVA RESPONSABLE</b><span class="official-chip produce">PRODUCE</span></div>
-      <div class="responsible-grid">
-        <div><strong>01</strong><b>Revisa vedas y tallas mínimas</b><p>No captures recursos durante vedas ni ejemplares por debajo de la talla mínima legal.</p></div>
-        <div><strong>02</strong><b>Protege especies sensibles</b><p>No captures tortugas, cetáceos u otras especies protegidas. Evita manipular fauna marina que no sea objetivo de pesca.</p></div>
-        <div><strong>03</strong><b>Captura y libera cuando corresponda</b><p>Para pez vela y merlines protegidos por la normativa citada por PRODUCE, la pesca deportiva se permite excepcionalmente bajo captura y liberación.</p></div>
-        <div><strong>04</strong><b>Reduce el impacto</b><p>Lleva tus residuos, evita abandonar líneas y anzuelos y limita la captura a lo que realmente utilizarás cuando esté permitido.</p></div>
-        <div><strong>05</strong><b>Respeta áreas restringidas</b><p>Verifica áreas naturales protegidas, zonas portuarias, Capitanías y restricciones locales antes de pescar.</p></div>
-        <div><strong>06</strong><b>Prioriza tu seguridad</b><p>No pesques desde roqueríos o embarcaciones cuando existan avisos de oleaje anómalo, viento fuerte o mala visibilidad.</p></div>
-      </div>
-      <div class="dual-buttons">
-        <a class="btn primary" target="_blank" rel="noopener" href="https://pescayconsumoresponsable.produce.gob.pe/">PRODUCE · PESCA RESPONSABLE ↗</a>
-        <a class="btn" target="_blank" rel="noopener" href="https://www.imarpe.gob.pe/">IMARPE ↗</a>
-      </div>
-    </article>
+        <section class="marine-tab" data-marine-panel="map">
+          <article class="mp-card mp-map-card">
+            <div class="mp-title"><b>MAPA COSTERO</b><span id="mpMapLabel">Puerto seleccionado</span></div>
+            <div id="marineMap" class="bigmap medium"></div>
+          </article>
+        </section>
+      </main>
 
-    <article class="panel fishing-places">
-      <div class="sectionline"><b>SECTORES PARA PLANIFICAR UNA SALIDA RECREATIVA</b><span>referencial</span></div>
-      <p>Estos sectores se proponen por contar con puertos o referencias costeras con información de mareas/condiciones marinas. <b>No constituyen una autorización oficial de pesca ni garantizan presencia de especies.</b></p>
-      <div id="fishingSectors" class="sector-list"></div>
-    </article>
-  </div>
-
-  <div class="official-credit-bar marine-credit">
-    <div class="credit-icon">i</div>
-    <div>
-      <b>Fuentes y responsabilidad</b>
-      <p>Información oceanográfica: Dirección de Hidrografía y Navegación de la Marina de Guerra del Perú. Conservación y normativa pesquera: PRODUCE e IMARPE. GeoSismosLatam organiza esta información con fines educativos y preventivos.</p>
-      <small>Antes de una actividad marítima o pesquera, prevalecen siempre los avisos, restricciones, vedas, tallas mínimas y disposiciones vigentes de las autoridades competentes.</small>
+      <aside class="marine-pro-side">
+        <article class="mp-side-card">
+          <b>LEYENDA RÁPIDA</b>
+          <div class="mp-legend-row"><i class="lv low"></i><span>Condición favorable / baja energía</span></div>
+          <div class="mp-legend-row"><i class="lv medium"></i><span>Condición moderada / precaución</span></div>
+          <div class="mp-legend-row"><i class="lv high"></i><span>Condición desfavorable / alta energía</span></div>
+          <small>La interpretación cambia automáticamente con el puerto y los datos cargados.</small>
+        </article>
+        <article class="mp-side-card">
+          <b>QUÉ OBSERVAR</b>
+          <div id="mpExplain">Selecciona un puerto para obtener una explicación automática de oleaje, viento, mareas y condiciones de pesca.</div>
+        </article>
+        <article class="mp-side-card">
+          <b>SEGURIDAD</b>
+          <div id="mpSafety">Verifica siempre avisos de la DHN, Capitanía de Puerto y condiciones locales antes de ingresar al mar o pescar desde roqueríos.</div>
+        </article>
+        <article class="mp-side-card">
+          <b>FUENTES</b>
+          <a target="_blank" rel="noopener" href="https://www.dhn.mil.pe/portal/tabla-mareas">DHN · Mareas ↗</a>
+          <a target="_blank" rel="noopener" href="https://www.naylamp.dhn.mil.pe/oceano/pronosticos/">DHN · Oleaje/Viento ↗</a>
+          <a target="_blank" rel="noopener" href="https://www.imarpe.gob.pe/">IMARPE ↗</a>
+          <a target="_blank" rel="noopener" href="https://pescayconsumoresponsable.produce.gob.pe/">PRODUCE ↗</a>
+        </article>
+      </aside>
     </div>
   </div>
 </section>
@@ -868,5 +899,6 @@
 <script src="v16_5_auto_panel.js?v=16.6.0"></script>
 <link rel="stylesheet" href="v16_6_smart_inputs.css?v=16.6.0">
 <script src="v16_6_smart_inputs.js?v=16.6.0"></script>
+<script src="marine_pro.js?v=16.12"></script>
 </body>
 </html>

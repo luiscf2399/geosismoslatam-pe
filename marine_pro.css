@@ -1,0 +1,25 @@
+
+/* GeoSismosLatam V16.12 — Mar & Pesca: diseño propio inspirado en herramientas modernas de planificación */
+#marine .context-legend,#marine .map-legend-panel,#marine .marine-live-grid,#marine .fishing-grid,#marine .official-credit-bar{display:none!important}
+.marine-pro-view{padding:0!important;background:#061721}
+.marine-pro-shell{padding:8px;max-width:1700px;margin:auto}
+.marine-pro-top{display:flex;justify-content:space-between;gap:18px;align-items:center;padding:14px 16px;background:linear-gradient(120deg,#062b3d,#094b58);border:1px solid #276575;border-radius:10px}
+.marine-pro-top h2{margin:3px 0 4px;font-size:24px}.marine-pro-top p{margin:0;opacity:.82}.marine-kicker{font-size:11px;font-weight:800;color:#6fe7e7;letter-spacing:.08em}
+.marine-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.marine-actions select{min-width:160px}
+.marine-pro-status{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:7px 0}
+.marine-pro-status>div{background:#092433;border:1px solid #245566;border-radius:8px;padding:10px 12px}.marine-pro-status span{display:block;font-size:9px;opacity:.72;text-transform:uppercase}.marine-pro-status b{font-size:16px}
+.marine-pro-tabs{display:flex;gap:4px;overflow:auto;background:#061d29;border:1px solid #244e5c;border-radius:8px;padding:5px}
+.marine-pro-tabs button{flex:1;min-width:100px;border:0;background:#0b2a38;color:#cfe9ee;border-radius:6px;padding:9px;font-size:10px;font-weight:800;cursor:pointer}.marine-pro-tabs button.active{background:#117a8b;color:white}
+.marine-pro-body{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:7px;margin-top:7px}.marine-pro-main{min-width:0}.marine-tab{display:none}.marine-tab.active{display:block}
+.marine-overview-grid{display:grid;grid-template-columns:1.5fr .8fr;gap:7px}.mp-card,.mp-side-card{background:#092330;border:1px solid #285668;border-radius:9px;padding:12px;margin-bottom:7px}
+.mp-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.mp-title b{font-size:11px}.mp-title span{font-size:9px;color:#74d8e5}
+.mp-chart-legend,.mp-scale{display:flex;gap:16px;flex-wrap:wrap;font-size:9px;opacity:.8}.mp-recommendation{font-size:14px;line-height:1.45}.mp-best-times{margin-top:10px;display:grid;gap:5px}
+.mp-daily-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}.mp-day{padding:10px;background:#0a2b39;border:1px solid #2a5968;border-radius:8px;text-align:center}.mp-day b,.mp-day small{display:block}.mp-day strong{font-size:15px;display:block;margin:5px 0}
+.mp-data-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.mp-data-grid>div{background:#092330;border:1px solid #285668;border-radius:8px;padding:10px}
+.marine-pro-side{display:flex;flex-direction:column;gap:0}.mp-side-card b{display:block;margin-bottom:8px;font-size:11px}.mp-side-card div,.mp-side-card small{font-size:10px;line-height:1.45}.mp-side-card a{display:block;color:#73d9e7;margin:6px 0;font-size:10px}
+.mp-legend-row{display:flex;align-items:center;gap:8px;margin:6px 0}.lv{display:inline-block;width:12px;height:12px;border-radius:3px}.lv.low{background:#24c486}.lv.medium{background:#f3b63d}.lv.high{background:#ed5960}
+.mp-tide-tools{display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:8px}.mp-tide-tools label{display:grid;gap:4px;font-size:9px}.mp-tide-frame-wrap{height:560px}.mp-tide-frame-wrap iframe{width:100%;height:500px;border:1px solid #376373;border-radius:8px;background:white}
+.mp-astro{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.mp-astro>div,.mp-solunar-windows>div{background:#0a2d3b;border-radius:8px;padding:10px;border:1px solid #2a5968}
+.mp-solunar-windows{display:grid;gap:7px}.mp-map-card{padding:8px}.mp-map-card #marineMap{height:560px!important}
+@media(max-width:1100px){.marine-pro-body{grid-template-columns:1fr}.marine-pro-side{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}.marine-pro-status{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:760px){.marine-pro-shell{padding:4px}.marine-pro-top{align-items:flex-start;flex-direction:column}.marine-pro-status{grid-template-columns:repeat(2,1fr)}.marine-overview-grid{grid-template-columns:1fr}.marine-pro-side{grid-template-columns:1fr}.mp-daily-strip{grid-template-columns:repeat(2,1fr)}.mp-data-grid{grid-template-columns:repeat(2,1fr)}.mp-tide-frame-wrap{height:470px}.mp-tide-frame-wrap iframe{height:420px}}

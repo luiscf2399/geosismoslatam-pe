@@ -1,8 +1,8 @@
-const CACHE='geosismos-v16-11-pwa-20260824';
+const CACHE='geosismos-v16-12-pwa-20260824';
 const CORE=[
   './','./index.html','./styles.css','./app.js?v=16.9.0','./logo.svg','./clif_logo.jpg','./manifest.webmanifest',
-  './v14_extension.css','./v15_extension.css','./v16-11extension.css','./v16-11_extension.css','./v16-11_extension.css','./v16-11_auto_panel.css','./v16-11_smart_inputs.css?v=16.9.0',
-  './v14_config.js?v=16.9.0','./v14_extension.js?v=16.9.0','./ubigeo_freight.js?v=16.9.0','./v15_extension.js?v=16.9.0','./v16-11extension.js?v=16.9.0','./v16-11_extension.js?v=16.9.0','./v16-11_extension.js?v=16.9.0','./v16-11_auto_panel.js?v=16.9.0','./v16-11_smart_inputs.js?v=16.9.0',
+  './v14_extension.css','./v15_extension.css','./v16-12extension.css','./v16-12_extension.css','./v16-12_extension.css','./v16-12_auto_panel.css','./v16-12_smart_inputs.css?v=16.9.0',
+  './v14_config.js?v=16.9.0','./v14_extension.js?v=16.9.0','./ubigeo_freight.js?v=16.9.0','./v15_extension.js?v=16.9.0','./v16-12extension.js?v=16.9.0','./v16-12_extension.js?v=16.9.0','./v16-12_extension.js?v=16.9.0','./v16-12_auto_panel.js?v=16.9.0','./v16-12_smart_inputs.js?v=16.9.0',
   './ubigeo_inei_2025.csv','./icons/apple-touch-icon-180.png','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png'
 ];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)).catch(()=>{}))});
