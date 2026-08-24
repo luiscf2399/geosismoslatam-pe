@@ -18,6 +18,8 @@
 <link rel="stylesheet" href="v14_extension.css?v=15.0.0">
 <link rel="stylesheet" href="v15_extension.css?v=16.0.0">
 <link rel="stylesheet" href="v16_extension.css?v=16.0.0">
+<link rel="stylesheet" href="v16_2_extension.css?v=16.4.0">
+<link rel="stylesheet" href="v16_4_extension.css?v=16.4.0">
 </head>
 <body>
 <div id="iosInstallBanner" class="ios-install-banner" hidden>
@@ -730,8 +732,15 @@
       </article>
       <article class="panel freight-panel">
         <div class="sectionline"><b>CALCULADORA EXPERIMENTAL DE FLETE</b><span class="experimental">REFERENCIA DE MERCADO</span></div>
-        <div class="freight-form"><input id="freightOrigin" placeholder="Origen: Bella Unión, Arequipa"><input id="freightDestination" placeholder="Destino: Lima, Tumbes, Tacna, Iñapari…"><input id="freightTons" type="number" min="1" step="0.5" value="20" placeholder="Toneladas"><button id="freightCalc" class="btn primary">ESTIMAR FLETE</button></div>
-        <div id="freightResult" class="estimate-box">Ingresa origen, destino y toneladas. El cálculo promedia referencias públicas de fletes, valores referenciales MTC/SUNAT y rutas logísticas disponibles; no reemplaza la cotización final del transportista.</div>
+        <p class="freight-help">Selecciona el lugar de <b>salida</b>, el lugar de <b>llegada</b> y la carga aproximada. La ubicación se organiza por región/departamento, provincia y distrito para evitar errores de escritura.</p>
+        <div class="freight-location-grid">
+          <fieldset class="freight-location"><legend>📍 LUGAR DE SALIDA</legend><label>Región / departamento</label><select id="freightOriginRegion"><option>Cargando…</option></select><label>Provincia</label><select id="freightOriginProvince" disabled><option>Seleccionar provincia</option></select><label>Distrito</label><select id="freightOriginDistrict" disabled><option>Seleccionar distrito</option></select></fieldset>
+          <fieldset class="freight-location"><legend>🏁 LUGAR DE LLEGADA</legend><label>Región / departamento</label><select id="freightDestinationRegion"><option>Cargando…</option></select><label>Provincia</label><select id="freightDestinationProvince" disabled><option>Seleccionar provincia</option></select><label>Distrito</label><select id="freightDestinationDistrict" disabled><option>Seleccionar distrito</option></select></fieldset>
+        </div>
+        <input id="freightOrigin" type="hidden"><input id="freightDestination" type="hidden">
+        <div class="freight-load-row"><div class="freight-load-field"><label for="freightTons">Carga aproximada <b>(toneladas métricas)</b></label><div class="number-unit"><input id="freightTons" type="number" min="0.1" step="0.1" value="20" inputmode="decimal" aria-describedby="freightTonsHelp"><span>t</span></div><small id="freightTonsHelp">Ejemplo: 30 = 30 toneladas = 30 000 kg.</small></div><button id="freightCalc" class="btn primary">CALCULAR FLETE REFERENCIAL</button></div>
+        <div id="freightUbigeoStatus" class="freight-ubigeo-status">Cargando base territorial nacional…</div>
+        <div id="freightResult" class="estimate-box">Selecciona salida, llegada y toneladas. El cálculo promedia referencias públicas de fletes, valores referenciales MTC/SUNAT y rutas logísticas disponibles; no reemplaza la cotización final del transportista.</div>
       </article>
     </div>
   </section>
@@ -828,11 +837,13 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 <script src="https://unpkg.com/esri-leaflet@3.0.15/dist/esri-leaflet.js"></script>
-<script src="app.js?v=16.0.0"></script>
-<script src="v14_config.js?v=16.0.0"></script>
-<script src="v14_extension.js?v=16.0.0"></script>
-<script src="v15_extension.js?v=16.0.0"></script>
-<script src="v16_extension.js?v=16.0.0"></script>
+<script src="app.js?v=16.4.0"></script>
+<script src="v14_config.js?v=16.4.0"></script>
+<script src="v14_extension.js?v=16.4.0"></script>
+<script src="ubigeo_freight.js?v=16.4.0"></script>
+<script src="v15_extension.js?v=16.4.0"></script>
+<script src="v16_extension.js?v=16.4.0"></script>
+<script src="v16_2_extension.js?v=16.4.0"></script>
 
 <script>
 (function(){
@@ -843,8 +854,9 @@
   const b=document.getElementById('iosInstallBanner');
   if(b && isIOS && isSafari && !standalone && !dismissed) b.hidden=false;
   document.getElementById('iosInstallClose')?.addEventListener('click',()=>{b.hidden=true;localStorage.setItem('gs_ios_install_dismissed','1')});
-  if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=16.0').catch(console.warn));}
+  if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=16.4').catch(console.warn));}
 })();
 </script>
+<script src="v16_4_extension.js?v=16.4.0"></script>
 </body>
 </html>

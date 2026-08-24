@@ -584,6 +584,66 @@ async function marineSummary(request){
   const wh=Number(wave?.height),ws=Number(wind?.speed);let score=70;if(Number.isFinite(wh))score-=Math.max(0,wh-1)*18;if(Number.isFinite(ws))score-=Math.max(0,ws-15)*1.2;score=Math.max(10,Math.min(90,Math.round(score)));const condition=score>=70?'Favorable para planificar':score>=45?'Precaución':'Condición poco favorable';
   return json({ok:true,port,lat,lon,updatedAt:Date.now(),wave,wind,score,condition,officialTideUrl:'https://www.dhn.mil.pe/portal/tabla-mareas',solunarUrl:'https://tides4fishing.com/pe',note:'El índice operativo es experimental y orienta seguridad/planificación; no pronostica cantidad de peces ni reemplaza avisos DHN/Capitanía.'},200,{'Cache-Control':'public, max-age=600'});
 }
+
+function placeCategory(types=[]){
+  const t=(types||[]).join(' ').toLowerCase();
+  if(/restaurant|cafe|bakery|bar|food/.test(t)) return 'Restaurante / comida';
+  if(/hotel|lodging|hostel|motel|guest_house/.test(t)) return 'Hotel / alojamiento';
+  if(/shopping_mall|store|supermarket|market/.test(t)) return 'Centro comercial / negocio';
+  if(/park|plaza|square|tourist|museum|church|landmark/.test(t)) return 'Lugar / atractivo';
+  if(/street|route|road|intersection|address/.test(t)) return 'Calle / dirección';
+  if(/bus|terminal|airport|transit|station/.test(t)) return 'Transporte / terminal';
+  if(/hospital|clinic|pharmacy/.test(t)) return 'Salud';
+  if(/school|university|education/.test(t)) return 'Educación';
+  return 'Lugar';
+}
+async function placeSearch(request,env){
+  const u=new URL(request.url),q=(u.searchParams.get('q')||'').trim().slice(0,120);
+  const lat=Number(u.searchParams.get('lat')),lon=Number(u.searchParams.get('lon'));
+  if(q.length<2)return json({ok:true,results:[]});
+  // Producción recomendada: Google Places Autocomplete. Admite calles, direcciones,
+  // restaurantes, hoteles, plazas, centros comerciales, comercios y otros POI.
+  if(env?.GOOGLE_PLACES_API_KEY){
+    const body={input:q,includedRegionCodes:['pe'],languageCode:'es',regionCode:'PE'};
+    if(Number.isFinite(lat)&&Number.isFinite(lon)) body.locationBias={circle:{center:{latitude:lat,longitude:lon},radius:50000}};
+    const r=await fetch('https://places.googleapis.com/v1/places:autocomplete',{
+      method:'POST',headers:{'Content-Type':'application/json','X-Goog-Api-Key':env.GOOGLE_PLACES_API_KEY,'X-Goog-FieldMask':'suggestions.placePrediction.placeId,suggestions.placePrediction.text,suggestions.placePrediction.types,suggestions.placePrediction.structuredFormat'},body:JSON.stringify(body)
+    });
+    if(r.ok){
+      const j=await r.json();
+      const results=(j.suggestions||[]).map(x=>x.placePrediction).filter(Boolean).map(p=>({
+        placeId:p.placeId,name:p.structuredFormat?.mainText?.text||p.text?.text||q,label:p.text?.text||q,
+        type:placeCategory(p.types),types:p.types||[],provider:'Google Places'
+      }));
+      return json({ok:true,provider:'google',results},200,{'Cache-Control':'private, max-age=60'});
+    }
+  }
+  // Respaldo de baja frecuencia. Para un despliegue masivo debe configurarse Google Places
+  // u otro proveedor autorizado; el Nominatim público no debe usarse como autocomplete intensivo.
+  const url='https://nominatim.openstreetmap.org/search?'+new URLSearchParams({format:'jsonv2',limit:'10',countrycodes:'pe',addressdetails:'1',namedetails:'1',q});
+  const r=await fetch(url,{headers:{'User-Agent':'GeoSismosLatam/16.3 route planner'}});
+  if(!r.ok)return json({ok:false,results:[]},502);
+  const a=await r.json();
+  const results=(a||[]).map(x=>({lat:+x.lat,lon:+x.lon,label:x.display_name||q,name:(x.namedetails?.name||x.name||x.display_name||q).split(',')[0],type:placeCategory([x.type,x.class]),types:[x.class,x.type].filter(Boolean),provider:'OpenStreetMap'}));
+  return json({ok:true,provider:'osm-fallback',results},200,{'Cache-Control':'public, max-age=900'});
+}
+async function placeDetail(request,env){
+  const u=new URL(request.url),id=(u.searchParams.get('id')||'').trim();
+  if(!id||!env?.GOOGLE_PLACES_API_KEY)return json({ok:false,error:'Detalle no disponible'},400);
+  const r=await fetch('https://places.googleapis.com/v1/places/'+encodeURIComponent(id),{headers:{'X-Goog-Api-Key':env.GOOGLE_PLACES_API_KEY,'X-Goog-FieldMask':'id,displayName,formattedAddress,location,primaryType,types'}});
+  if(!r.ok)return json({ok:false,error:'No se pudo resolver el lugar'},502);
+  const p=await r.json();
+  return json({ok:true,lat:p.location?.latitude,lon:p.location?.longitude,name:p.displayName?.text||'',label:p.formattedAddress||p.displayName?.text||'',type:placeCategory(p.types),types:p.types||[],provider:'Google Places'},200,{'Cache-Control':'private, max-age=300'});
+}
+async function placeReverse(request){
+  const u=new URL(request.url),lat=+u.searchParams.get('lat'),lon=+u.searchParams.get('lon');
+  if(!Number.isFinite(lat)||!Number.isFinite(lon))return json({ok:false,error:'Coordenadas inválidas'},400);
+  const url='https://nominatim.openstreetmap.org/reverse?'+new URLSearchParams({format:'jsonv2',zoom:'16',lat:String(lat),lon:String(lon)});
+  const r=await fetch(url,{headers:{'User-Agent':'GeoSismosLatam/16.2 route planner'}});
+  if(!r.ok)return json({ok:true,label:`${lat.toFixed(5)}, ${lon.toFixed(5)}`});
+  const j=await r.json();
+  return json({ok:true,label:j.display_name||`${lat.toFixed(5)}, ${lon.toFixed(5)}`,lat,lon},200,{'Cache-Control':'public, max-age=86400'});
+}
 export default {
   async fetch(request,env,ctx){
     if(request.method==="OPTIONS") return new Response(null,{status:204,headers:cors});
@@ -594,13 +654,16 @@ export default {
         const home=new URL("/index.html",request.url);
         return env.ASSETS.fetch(new Request(home,request));
       }
-      if(u.pathname==="/api/health") return json({ok:true,time:Date.now(),service:"GeoSismosLatam API v16"});
+      if(u.pathname==="/api/health") return json({ok:true,time:Date.now(),service:"GeoSismosLatam API v16.3"});
       if(u.pathname==="/api/emergencies") return emergencies(request,ctx,env);
       if(u.pathname==="/api/enfen") return enfen(ctx,env);
       if(u.pathname==="/api/agriculture") return agriculture(ctx,env);
       if(u.pathname==="/api/roads") return roads(ctx);
       if(u.pathname==="/api/markets") return markets(request,ctx);
       if(u.pathname==="/api/freight") return freightV15(request);
+      if(u.pathname==="/api/place-search") return placeSearch(request,env);
+      if(u.pathname==="/api/place-detail") return placeDetail(request,env);
+      if(u.pathname==="/api/place-reverse") return placeReverse(request);
       if(u.pathname==="/api/route") return routeApi(request);
       if(u.pathname==="/api/agri-signals") return agriSignals(request,ctx);
       if(u.pathname==="/api/marine/summary") return marineSummary(request);
