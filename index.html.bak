@@ -16,8 +16,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="styles.css?v=15.0.0">
 <link rel="stylesheet" href="v14_extension.css?v=15.0.0">
-<link rel="stylesheet" href="v15_extension.css?v=16.0.0">
-<link rel="stylesheet" href="v16_extension.css?v=16.0.0">
+<link rel="stylesheet" href="v15_extension.css?v=15.0.0">
 </head>
 <body>
 <div id="iosInstallBanner" class="ios-install-banner" hidden>
@@ -42,7 +41,6 @@
 </header>
 
 <nav class="mainnav">
-  <button data-view="dashboard">⌁ <b>CENTRO</b><small>Situación cerca de mí</small></button>
   <button class="active" data-view="monitor">◉ <b>MONITOREO</b><small>Sismos en tiempo real</small></button>
   <button data-view="forecast">◌ <b>PROYECCIÓN</b><small>Análisis probabilístico</small></button>
   <button data-view="rain">☁ <b>LLUVIAS</b><small>Precipitación y avisos</small></button>
@@ -99,13 +97,6 @@
 </aside>
 
 <main>
-<section id="dashboard" class="view">
-  <div class="section-hero"><div><span class="eyebrow">CENTRO DE SITUACIÓN</span><h2>¿Qué está pasando cerca de mí?</h2><p>Resumen territorial integrado. Usa tu ubicación autorizada para acercar sismos, lluvias, carreteras, riesgos, mercados y condiciones marinas.</p></div><button id="dashLocate" class="btn">⌖ USAR MI UBICACIÓN</button></div>
-  <div id="v16QualityBar" class="v16-quality-bar"></div>
-  <div id="v16SituationGrid" class="v16-situation-grid"><div class="v16-card"><b>Cargando situación…</b><small>Las fuentes se consultan de forma progresiva para no bloquear el portal.</small></div></div>
-  <div class="v16-dashboard-actions"><button class="btn" data-jump="monitor">SISMOS</button><button class="btn" data-jump="rain">LLUVIAS</button><button class="btn" data-jump="roads">CARRETERAS</button><button class="btn" data-jump="risk">RIESGOS</button><button class="btn" data-jump="agriculture">MERCADOS</button><button class="btn" data-jump="marine">MAR</button></div>
-</section>
-
 <section id="monitor" class="view active">
   <div class="workspace three">
     <aside class="side left">
@@ -828,11 +819,10 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 <script src="https://unpkg.com/esri-leaflet@3.0.15/dist/esri-leaflet.js"></script>
-<script src="app.js?v=16.0.0"></script>
-<script src="v14_config.js?v=16.0.0"></script>
-<script src="v14_extension.js?v=16.0.0"></script>
-<script src="v15_extension.js?v=16.0.0"></script>
-<script src="v16_extension.js?v=16.0.0"></script>
+<script src="app.js?v=15.0.0"></script>
+<script src="v14_config.js?v=15.0.0"></script>
+<script src="v14_extension.js?v=15.0.0"></script>
+<script src="v15_extension.js?v=15.0.0"></script>
 
 <script>
 (function(){
@@ -843,7 +833,7 @@
   const b=document.getElementById('iosInstallBanner');
   if(b && isIOS && isSafari && !standalone && !dismissed) b.hidden=false;
   document.getElementById('iosInstallClose')?.addEventListener('click',()=>{b.hidden=true;localStorage.setItem('gs_ios_install_dismissed','1')});
-  if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=16.0').catch(console.warn));}
+  if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=15.0').catch(console.warn));}
 })();
 </script>
 </body>

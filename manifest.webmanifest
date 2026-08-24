@@ -1,9 +1,37 @@
 {
+  "id": "./",
   "name": "GeoSismosLatam.pe",
   "short_name": "GeoSismos",
-  "start_url": "./",
+  "description": "Portal ciudadano de sismos, clima, riesgos, carreteras, agricultura, mercados y prevención para Perú.",
+  "lang": "es-PE",
+  "start_url": "./?source=pwa&v=14.0",
+  "scope": "./",
   "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any",
   "background_color": "#041522",
   "theme_color": "#06182a",
-  "icons": []
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
 }

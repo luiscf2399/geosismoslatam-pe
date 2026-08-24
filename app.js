@@ -93,6 +93,7 @@ function initMaps(){
   maps.marineMap=mkMap('marineMap');
   maps.agriMap=mkMap('agriMap');
   Object.values(maps).forEach(m=>m.fitBounds([[-20.5,-82.5],[-2,-68]],{padding:[8,8]}));
+  window.GSL_MAPS=maps;
   initMapData();
   try{
     soilLayer=L.esri.dynamicMapLayer({url:IGP_SOIL,layers:[9],opacity:.72,useCors:true}).addTo(maps.soilMap);
@@ -347,7 +348,7 @@ async function loadOwnSeasonalMap(h){
   const group=L.layerGroup();
   rows.forEach(r=>{
     const v=Number(r.anomaly)||0, col=seasonalColor(v);
-    const rect=L.rectangle([[r.lat-1.45,r.lon-1.45],[r.lat+1.45,r.lon+1.45]],{stroke:true,color:col,weight:.5,fillColor:col,fillOpacity:.43});
+    const rect=L.circle([r.lat,r.lon],{radius:165000,stroke:false,fillColor:col,fillOpacity:.34,className:'rain-blob'});
     const label=method==='ecmwf'
       ? `Anomalía del modelo: ${Number.isFinite(r.anomaly)?r.anomaly.toFixed(1):'—'} ${r.unit||''}${Number.isFinite(r.mean)?`<br>Media modelada: ${r.mean.toFixed(1)}`:''}`
       : `Índice orientativo GeoSismos: ${v>0?'+':''}${v.toFixed(0)}<br>${esc(r.reason||'')}`;
@@ -394,7 +395,7 @@ async function loadShortRainGrid(days){
   const group=L.layerGroup();
   rows.forEach(x=>{
     const col=shortRainColor(x.mm,days);
-    const rect=L.rectangle([[x.lat-1.45,x.lon-1.45],[x.lat+1.45,x.lon+1.45]],{stroke:true,color:col,weight:.5,fillColor:col,fillOpacity:.46});
+    const rect=L.circle([x.lat,x.lon],{radius:145000,stroke:false,fillColor:col,fillOpacity:.38,className:'rain-blob'});
     rect.bindTooltip(`<b>${days===1?'24 h':'7 días'}</b><br>Acumulado modelado: ${x.mm.toFixed(1)} ${x.unit}`);
     rect.on('click',()=>{
       setRainLegend(days===1?'1d':'7d',{title:`Pronóstico alternativo ${days===1?'24 h':'7 días'} · celda seleccionada`,source:'Modelo meteorológico global (acceso Open-Meteo) · apoyo, no fuente oficial peruana',intro:`Acumulado modelado para esta celda: ${x.mm.toFixed(1)} ${x.unit}. Se usa solo cuando la capa SENAMHI no responde. Para decisiones locales prevalecen SENAMHI y observaciones disponibles.`,situation:`Celda seleccionada · ${x.mm.toFixed(1)} ${x.unit}`,variable:'Precipitación acumulada modelada',unit:x.unit,horizon:days===1?'24 horas':'7 días'});
@@ -480,29 +481,31 @@ async function loadRain(mode='now'){
       title.textContent='NASA GPM · IMERG · precipitación reciente';legend.textContent='IMERG: tasa de precipitación estimada por satélite. Haz clic en el mapa para explicar el punto y la capa.';setLayerStatus('rainStatus','NASA IMERG solicitado. La latencia del Early Run es aproximadamente de horas.',true);return;
     }
     if(mode==='1d'){
-      setRainLegend('1d');
-      setLayerStatus('rainStatus','Consultando capa SENAMHI de 24 horas…',true);
+      setRainLegend('1d',{intro:'Mapa coloreado de precipitación acumulada prevista para las próximas 24 horas. La visualización prioriza una capa modelada visible; SENAMHI permanece como referencia oficial peruana.'});
+      setLayerStatus('rainStatus','Generando precipitación prevista de 24 horas…',true);
       try{
-        const lyr=await discoverWms(SEN_24H,['lluv','precip','24h','aviso']);
-        rainLayer=L.tileLayer.wms(SEN_24H,{layers:lyr.name,format:'image/png',transparent:true,opacity:.74,version:'1.1.1',attribution:'SENAMHI · IDESEP'}).addTo(maps.rainMap);
-        title.textContent='SENAMHI · 24 h · '+(lyr.title||lyr.name);legend.textContent='Corto plazo: capa oficial SENAMHI. La escala y vigencia corresponden al producto publicado.';setLayerStatus('rainStatus','Capa oficial de 24 h cargada.',true);return;
-      }catch(e){
-        setLayerStatus('rainStatus','SENAMHI no respondió; cargando pronóstico global alternativo…',false);
         await loadShortRainGrid(1);
-        title.textContent='Pronóstico alternativo · 24 h';legend.textContent='Grilla meteorológica alternativa. SENAMHI sigue siendo la referencia oficial peruana.';setLayerStatus('rainStatus','Capa alternativa cargada por falla temporal del servicio SENAMHI.',true);return;
+        title.textContent='Precipitación proyectada · próximas 24 h';legend.textContent='Colores = acumulado modelado de precipitación. SENAMHI sigue siendo la referencia oficial peruana.';setLayerStatus('rainStatus','Capa coloreada de 24 h cargada. Consulte SENAMHI para avisos oficiales.',true);return;
+      }catch(e){
+        try{
+          const lyr=await discoverWms(SEN_24H,['lluv','precip','24h','aviso']);
+          rainLayer=L.tileLayer.wms(SEN_24H,{layers:lyr.name,format:'image/png',transparent:true,opacity:.78,version:'1.1.1',attribution:'SENAMHI · IDESEP'}).addTo(maps.rainMap);
+          title.textContent='SENAMHI · 24 h · '+(lyr.title||lyr.name);legend.textContent='Capa oficial SENAMHI.';setLayerStatus('rainStatus','Capa oficial de 24 h cargada.',true);return;
+        }catch(e2){throw e2}
       }
     }
     if(mode==='7d'){
-      setRainLegend('7d');
-      setLayerStatus('rainStatus','Consultando predicción numérica SENAMHI…',true);
+      setRainLegend('7d',{intro:'Mapa coloreado del acumulado modelado de precipitación para los próximos 7 días. La incertidumbre aumenta con el plazo.'});
+      setLayerStatus('rainStatus','Generando precipitación acumulada de 7 días…',true);
       try{
-        const lyr=await discoverWms(SEN_NUM,['prec','precip','lluv']);
-        rainLayer=L.tileLayer.wms(SEN_NUM,{layers:lyr.name,format:'image/png',transparent:true,opacity:.72,version:'1.1.1',attribution:'SENAMHI · IDESEP'}).addTo(maps.rainMap);
-        title.textContent='SENAMHI · pronóstico numérico · horizonte semanal';legend.textContent='Pronóstico modelado; verifique el rango temporal exacto de la capa oficial.';setLayerStatus('rainStatus','Pronóstico numérico cargado.',true);return;
-      }catch(e){
-        setLayerStatus('rainStatus','SENAMHI no respondió; cargando acumulado global alternativo de 7 días…',false);
         await loadShortRainGrid(7);
-        title.textContent='Pronóstico alternativo · 7 días';legend.textContent='Acumulado modelado de 7 días. SENAMHI sigue siendo la referencia oficial peruana.';setLayerStatus('rainStatus','Capa alternativa semanal cargada por falla temporal del servicio SENAMHI.',true);return;
+        title.textContent='Precipitación proyectada · próximos 7 días';legend.textContent='Colores = acumulado modelado semanal. SENAMHI sigue siendo la referencia oficial peruana.';setLayerStatus('rainStatus','Capa coloreada semanal cargada.',true);return;
+      }catch(e){
+        try{
+          const lyr=await discoverWms(SEN_NUM,['prec','precip','lluv']);
+          rainLayer=L.tileLayer.wms(SEN_NUM,{layers:lyr.name,format:'image/png',transparent:true,opacity:.78,version:'1.1.1',attribution:'SENAMHI · IDESEP'}).addTo(maps.rainMap);
+          title.textContent='SENAMHI · pronóstico numérico · horizonte semanal';legend.textContent='Pronóstico modelado oficial.';setLayerStatus('rainStatus','Pronóstico numérico cargado.',true);return;
+        }catch(e2){throw e2}
       }
     }
     if(/^[1-6]m$/.test(mode)){

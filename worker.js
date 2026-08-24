@@ -442,6 +442,148 @@ async function dhnWind(){
   return proxyImage("https://www.naylamp.dhn.mil.pe/oceano/pronosticos/data/peru_wind_1.gif",300);
 }
 
+
+
+const ROAD_GEO = [
+  ['PANAMERICANA NORTE',-8.11,-79.03,'Panamericana Norte · Trujillo'],['PANAMERICANA SUR',-14.83,-74.94,'Panamericana Sur · Nasca'],
+  ['CARRETERA CENTRAL',-11.93,-76.69,'Carretera Central · Huarochirí'],['AREQUIPA',-16.40,-71.54,'Arequipa'],['ICA',-14.07,-75.73,'Ica'],
+  ['NASCA',-14.83,-74.94,'Nasca'],['NAZCA',-14.83,-74.94,'Nasca'],['CHALA',-15.86,-74.25,'Chala'],['CAMANA',-16.62,-72.71,'Camaná'],
+  ['OCOÑA',-16.43,-73.11,'Ocoña'],['TACNA',-18.01,-70.25,'Tacna'],['PIURA',-5.19,-80.63,'Piura'],['CHICLAYO',-6.77,-79.84,'Chiclayo'],
+  ['TRUJILLO',-8.11,-79.03,'Trujillo'],['LIMA',-12.05,-77.04,'Lima'],['CUSCO',-13.52,-71.97,'Cusco'],['JULIACA',-15.50,-70.13,'Juliaca'],
+  ['PUNO',-15.84,-70.02,'Puno'],['HUANCAYO',-12.07,-75.21,'Huancayo'],['AYACUCHO',-13.16,-74.22,'Ayacucho'],['TUMBES',-3.57,-80.46,'Tumbes']
+];
+function classifyRoad(text=''){
+  const t=text.toUpperCase();
+  if(/NEBLINA|NIEBLA|VISIBILIDAD/.test(t))return 'fog';
+  if(/HUAICO|HUAYCO|LLUVIA|INUND|DESBORDE|DERRUMBE/.test(t))return 'weather';
+  if(/ACCIDENT|CHOQUE|VOLCAD|DESPISTE|SINIESTRO/.test(t))return 'accident';
+  if(/DESTRUID|SOCAV|PUENTE|CALZADA|PLATAFORMA|DAÑO/.test(t))return 'damage';
+  if(/BLOQUE|OBSTAC|INTERRUMP|RESTRING|PARALIZ|CIERRE/.test(t))return 'blocked';
+  return 'social';
+}
+function locateRoad(text=''){
+  const t=text.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+  for(const [k,lat,lon,place] of ROAD_GEO)if(t.includes(k.normalize('NFD').replace(/[\u0300-\u036f]/g,'')))return {lat,lon,place};
+  return null;
+}
+async function roads(ctx){
+  const key='https://cache.geosismoslatam.pe/roads/v14';
+  return cachedJson(key,600,ctx,async()=>{
+    const query='(carretera OR vía OR autopista OR Panamericana) (accidente OR bloqueo OR neblina OR huaico OR derrumbe OR tránsito OR interrumpido) Peru';
+    let articles=[];
+    try{
+      const url='https://api.gdeltproject.org/api/v2/doc/doc?'+new URLSearchParams({query,mode:'artlist',maxrecords:'60',timespan:'48h',sort:'datedesc',format:'json'});
+      const r=await fetch(url,{cf:{cacheTtl:300,cacheEverything:true}});if(r.ok){const j=await r.json();articles=j.articles||[]}
+    }catch{}
+    const seen=new Set(),incidents=[];
+    for(const a of articles){
+      const text=`${a.title||''} ${a.domain||''}`;const loc=locateRoad(text);if(!loc)continue;
+      const fp=(a.url||a.title||'').slice(0,180);if(seen.has(fp))continue;seen.add(fp);
+      incidents.push({type:classifyRoad(text),title:String(a.title||'Incidencia vial').slice(0,220),summary:'Señal detectada en una publicación pública indexada. Verifique la fuente original y el estado oficial de la vía.',source:a.domain||'Medio/publicación pública',url:a.url||'',published:a.seendate?Date.parse(a.seendate):Date.now(),confidence:'Baja',...loc});
+      if(incidents.length>=35)break;
+    }
+    return {ok:true,updatedAt:Date.now(),incidents,sources:[{name:'SUTRAN · Mapa de alertas',url:'https://gis.sutran.gob.pe/alerta_sutran/',official:true},{name:'SUTRAN · Mapa informativo',url:'https://gis.sutran.gob.pe/',official:true}],note:'Los marcadores secundarios se obtienen de publicaciones web indexables. Facebook, Instagram, TikTok, Telegram y WhatsApp no se rastrean de forma total ni privada; solo pueden integrarse publicaciones públicas mediante APIs autorizadas o enlaces explícitos.'};
+  });
+}
+
+const MARKET_SOURCES={
+  lima:[{name:'EMMSA / GMML',url:'https://www.emmsa.com.pe/'},{name:'MIDAGRI · precios e ingresos GMML',url:'https://www.gob.pe/institucion/midagri/colecciones/94873'}],
+  arequipa:[{name:'Gerencia Regional de Agricultura Arequipa',url:'https://www.agroarequipa.gob.pe/'},{name:'MIDAGRI / SIEA',url:'https://siea.midagri.gob.pe/portal/'}],
+  north:[{name:'Piura · Mi Mercado',url:'https://mimercado.regionpiura.gob.pe/'},{name:'MIDAGRI / SIEA',url:'https://siea.midagri.gob.pe/portal/'}]
+};
+const HISTORIC_MARKET = {
+  lima:[
+    {product:'Zanahoria',price:0.77,unit:'kg',market:'GMML Lima',kind:'Referencia oficial histórica',confidence:'Low',date:'2026-05-18'},
+    {product:'Papa Yungay',price:1.36,unit:'kg',market:'GMML Lima',kind:'Referencia oficial histórica',confidence:'Low',date:'2026-05-18'},
+    {product:'Cebolla cabeza roja',price:2.83,unit:'kg',market:'GMML Lima',kind:'Referencia oficial histórica',confidence:'Low',date:'2026-05-18'},
+    {product:'Tomate Katia',price:2.50,unit:'kg',market:'GMML Lima',kind:'Referencia oficial histórica',confidence:'Low',date:'2026-05-18'}
+  ],
+  north:[
+    {product:'Cebolla cabeza roja',price:1.92,unit:'referencia mayorista',market:'Piura · Mi Mercado',kind:'Dato regional publicado',confidence:'Medium',date:'2026-03-13'},
+    {product:'Tomate',price:2.43,unit:'kg',market:'Piura · Mi Mercado',kind:'Dato regional publicado',confidence:'Medium',date:'2026-03-13'},
+    {product:'Zanahoria',price:2.10,unit:'referencia mayorista',market:'Piura · Mi Mercado',kind:'Dato regional publicado',confidence:'Medium',date:'2026-03-13'}
+  ],
+  arequipa:[]
+};
+
+const MARKET_ZONE_ALIAS={lima:'lima',lima_gmml:'lima',lima_mmp:'lima',arequipa:'arequipa',north:'north',piura:'north',lambayeque:'north',lalibertad:'north'};
+const MARKET_LABELS={lima_gmml:'Gran Mercado Mayorista de Lima (GMML)',lima_mmp:'Mercado Mayorista de Productores · Lima',arequipa:'Mercados regionales · Arequipa',piura:'Mercado regional · Piura',lambayeque:'Mercados regionales · Lambayeque/Chiclayo',lalibertad:'Mercados regionales · La Libertad/Trujillo',north:'Norte peruano · consolidado'};
+const EXTRA_MARKET_SOURCES={
+  lima_gmml:[{name:'MIDAGRI · Ingreso y precios GMML 2026',url:'https://www.gob.pe/institucion/midagri/colecciones/94874-reporte-de-ingreso-y-precios-en-el-gran-mercado-mayorista-de-lima-2026'}],
+  lima_mmp:[{name:'MIDAGRI · Mercado Mayorista de Productores',url:'https://www.gob.pe/institucion/midagri/colecciones/18-reporte-de-ingreso-y-precios-en-el-mercado-mayorista-de-productores'}],
+  piura:[{name:'Piura · Mi Mercado',url:'https://mimercado.regionpiura.gob.pe/'}],
+  lambayeque:[{name:'MIDAGRI / SIEA · precios en ciudades',url:'https://www.datosabiertos.gob.pe/dataset/midagri-02-datero-agrario-ministerio-de-desarrollo-agrario-y-riego'}],
+  lalibertad:[{name:'MIDAGRI / SIEA · precios en ciudades',url:'https://www.datosabiertos.gob.pe/dataset/midagri-02-datero-agrario-ministerio-de-desarrollo-agrario-y-riego'}]
+};
+async function markets(request,ctx){
+  const u=new URL(request.url),requested=u.searchParams.get('zone')||'lima_gmml',base=MARKET_ZONE_ALIAS[requested]||'lima',product=(u.searchParams.get('product')||'').trim().toLowerCase();
+  let rows=[...(HISTORIC_MARKET[base]||[])].map(x=>({...x,ingressTons:x.ingressTons??null}));
+  if(product)rows=rows.filter(x=>x.product.toLowerCase().includes(product));
+  const sourceList=[...(MARKET_SOURCES[base]||[]),...(EXTRA_MARKET_SOURCES[requested]||[])];
+  return json({ok:true,updatedAt:Date.now(),zone:requested,marketLabel:MARKET_LABELS[requested]||requested,rows,sources:sourceList,latestOfficialReport:sourceList[0]||null,model:{officialSignals:sourceList.length,secondarySignals:0,confidence:rows.length?'Baja':'Baja',updatedAt:Date.now(),note:'El portal prioriza Datero Agrario/SIEA, reportes MIDAGRI y mercados regionales. Cuando un mercado publique volumen de ingreso diario y precio, ambos campos se muestran por separado. No se inventan valores ausentes.',sources:[{name:'MIDAGRI / SIEA',url:'https://siea.midagri.gob.pe/portal/'},{name:'Datero Agrario · Datos Abiertos',url:'https://www.datosabiertos.gob.pe/dataset/midagri-02-datero-agrario-ministerio-de-desarrollo-agrario-y-riego'},{name:'INEI',url:'https://www.inei.gob.pe/'},{name:'Agencias Agrarias / GORE',url:'https://www.gob.pe/'}]}},200,{'Cache-Control':'public, max-age=600'});
+}
+async function geocodePlace(q){
+  const m=String(q||'').trim().match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+  if(m){const lat=+m[1],lon=+m[2];if(lat>=-22&&lat<=3&&lon>=-85&&lon<=-65)return {lat,lon,label:`${lat.toFixed(5)}, ${lon.toFixed(5)}`};}
+  const url='https://nominatim.openstreetmap.org/search?'+new URLSearchParams({format:'json',limit:'1',countrycodes:'pe',q:q+', Perú'});
+  const r=await fetch(url,{headers:{'User-Agent':'GeoSismosLatam/15 route and freight'}});if(!r.ok)throw new Error('geocoding');const j=await r.json();if(!j[0])throw new Error('place not found');return {lat:+j[0].lat,lon:+j[0].lon,label:j[0].display_name||q};
+}
+async function freight(request){
+  const u=new URL(request.url),origin=(u.searchParams.get('origin')||'').slice(0,100),destination=(u.searchParams.get('destination')||'').slice(0,100),tons=Math.max(1,Math.min(60,+u.searchParams.get('tons')||20));
+  if(!origin||!destination)return json({ok:false,error:'Falta origen o destino'},400);
+  const [a,b]=await Promise.all([geocodePlace(origin),geocodePlace(destination)]);
+  const rr=await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=false`);if(!rr.ok)throw new Error('route');const rj=await rr.json();const km=(rj.routes?.[0]?.distance||0)/1000;if(!km)throw new Error('route');
+  const trucks=Math.max(1,tons/20),low=km*4.8*trucks*1.10,high=km*7.2*trucks*1.18;
+  return json({ok:true,origin,destination,distanceKm:km,tons,low,high,note:'Rango experimental calculado por distancia vial y supuesto operativo de camión de 20 t. No incluye una cotización comercial real, tiempos de espera, seguros, peajes exactos, retorno vacío ni estacionalidad. Solicite cotizaciones a transportistas antes de contratar.'},200,{'Cache-Control':'no-store'});
+}
+
+
+const FREIGHT_CALIBRATION=[
+  {name:'MTC/SUNAT · valor referencial Lima–Trujillo',rateTonKm:135.66/557.24,kind:'oficial-referencial',url:'https://orientacion.sunat.gob.pe/detracciones-en-el-transporte-de-bienes-por-via-terrestre',weight:3},
+  {name:'Arequipa Cargo · Lima–Arequipa camión completo',rateTonKm:3450/(15*1000),kind:'cotización pública',url:'https://arequipacargotg.pe/',weight:2},
+  {name:'Ecarggo · retorno Arequipa–Lima 20 t',rateTonKm:1800/(20*1000),kind:'oferta pública/backhaul',url:'https://ecarggo.com/',weight:1}
+];
+function weightedRate(){const a=[];for(const x of FREIGHT_CALIBRATION)for(let i=0;i<x.weight;i++)a.push(x.rateTonKm);a.sort((x,y)=>x-y);return a[Math.floor(a.length/2)]||0.23}
+async function routeApi(request){
+  const u=new URL(request.url),origin=(u.searchParams.get('origin')||'').slice(0,120),destination=(u.searchParams.get('destination')||'').slice(0,120),stops=(u.searchParams.get('stops')||'').split('|').map(x=>x.trim()).filter(Boolean).slice(0,3);
+  if(!origin||!destination)return json({ok:false,error:'Falta origen o destino'},400);
+  const places=await Promise.all([origin,...stops,destination].map(geocodePlace));
+  const coords=places.map(p=>`${p.lon},${p.lat}`).join(';');
+  const rr=await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false`);if(!rr.ok)throw new Error('route');
+  const rj=await rr.json(),r=rj.routes?.[0];if(!r)return json({ok:false,error:'No se encontró ruta vial'},404);
+  return json({ok:true,places,distanceKm:r.distance/1000,durationMin:r.duration/60,geometry:r.geometry},200,{'Cache-Control':'no-store'});
+}
+async function freightV15(request){
+  const u=new URL(request.url),origin=(u.searchParams.get('origin')||'').slice(0,100),destination=(u.searchParams.get('destination')||'').slice(0,100),tons=Math.max(1,Math.min(60,+u.searchParams.get('tons')||20));
+  if(!origin||!destination)return json({ok:false,error:'Falta origen o destino'},400);
+  const [a,b]=await Promise.all([geocodePlace(origin),geocodePlace(destination)]);
+  const rr=await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=false`);if(!rr.ok)throw new Error('route');const rj=await rr.json();const km=(rj.routes?.[0]?.distance||0)/1000;if(!km)throw new Error('route');
+  const midRate=weightedRate(), lowRate=Math.max(.10,midRate*.68), highRate=midRate*1.42;
+  const operationalFactor=tons<10?1.18:tons>28?1.08:1.0;
+  const low=km*tons*lowRate*operationalFactor, mid=km*tons*midRate*operationalFactor, high=km*tons*highRate*operationalFactor;
+  return json({ok:true,origin,destination,distanceKm:km,tons,low,mid,high,rateTonKm:midRate,basis:FREIGHT_CALIBRATION,note:'Calculadora experimental calibrada con valores referenciales MTC/SUNAT y cotizaciones/ofertas públicas de transporte. Es una referencia de mercado: peajes, refrigeración, estiba, retorno vacío, espera, seguros, combustible y negociación pueden variar el precio final.'},200,{'Cache-Control':'no-store'});
+}
+function publicSourceType(domain=''){const d=domain.toLowerCase();return /facebook\.com|instagram\.com|tiktok\.com|t\.me|telegram\.me|youtube\.com|x\.com|twitter\.com/.test(d)?'social':'news'}
+async function agriSignals(request,ctx){
+  const u=new URL(request.url),q=(u.searchParams.get('q')||'agricultura precios mercado papa cebolla arroz').slice(0,100),source=u.searchParams.get('source')||'all';
+  const key='https://cache.geosismoslatam.pe/agri-signals/'+encodeURIComponent(q)+'/'+source;
+  return cachedJson(key,900,ctx,async()=>{
+    const query=`(${q}) (agricultura OR agricultor OR mercado OR cosecha OR siembra OR precio) Peru`;
+    let articles=[];try{const url='https://api.gdeltproject.org/api/v2/doc/doc?'+new URLSearchParams({query,mode:'artlist',maxrecords:'80',timespan:'72h',sort:'datedesc',format:'json'});const r=await fetch(url,{cf:{cacheTtl:600,cacheEverything:true}});if(r.ok){const j=await r.json();articles=j.articles||[]}}catch{}
+    let signals=articles.map(a=>({title:String(a.title||'Publicación agraria').slice(0,220),url:a.url||'',domain:a.domain||'',published:a.seendate||'',image:a.socialimage||'',sourceType:publicSourceType(a.domain||''),confidence:'Baja',note:'Señal pública indexada; verificar contexto y fuente original.'}));
+    if(source==='social')signals=signals.filter(x=>x.sourceType==='social');if(source==='news')signals=signals.filter(x=>x.sourceType==='news');
+    return {ok:true,updatedAt:Date.now(),signals:signals.slice(0,30),note:'Solo contenido público e indexable. No se accede a publicaciones privadas, chats de WhatsApp ni cuentas cerradas.'};
+  });
+}
+const MARINE_PORTS_V15={Callao:[-12.05,-77.16],Paita:[-5.09,-81.11],Talara:[-4.58,-81.27],Chimbote:[-9.08,-78.59],Huacho:[-11.11,-77.62],Pisco:[-13.71,-76.22],'San Juan':[-15.35,-75.16],Chala:[-15.86,-74.25],Atico:[-16.22,-73.61],Matarani:[-17.00,-72.10],Ilo:[-17.64,-71.34]};
+async function marineSummary(request){
+  const u=new URL(request.url),port=u.searchParams.get('port')||'Callao',xy=MARINE_PORTS_V15[port]||MARINE_PORTS_V15.Callao,[lat,lon]=xy;
+  let wave=null,wind=null;
+  try{const r=await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&current=wave_height,wave_period&timezone=America%2FLima`);if(r.ok){const j=await r.json();wave={height:j.current?.wave_height??null,period:j.current?.wave_period??null,units:j.current_units||{}}}}catch{}
+  try{const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=wind_speed_10m,wind_gusts_10m&timezone=America%2FLima`);if(r.ok){const j=await r.json();wind={speed:j.current?.wind_speed_10m??null,gust:j.current?.wind_gusts_10m??null,units:j.current_units||{}}}}catch{}
+  const wh=Number(wave?.height),ws=Number(wind?.speed);let score=70;if(Number.isFinite(wh))score-=Math.max(0,wh-1)*18;if(Number.isFinite(ws))score-=Math.max(0,ws-15)*1.2;score=Math.max(10,Math.min(90,Math.round(score)));const condition=score>=70?'Favorable para planificar':score>=45?'Precaución':'Condición poco favorable';
+  return json({ok:true,port,lat,lon,updatedAt:Date.now(),wave,wind,score,condition,officialTideUrl:'https://www.dhn.mil.pe/portal/tabla-mareas',solunarUrl:'https://tides4fishing.com/pe',note:'El índice operativo es experimental y orienta seguridad/planificación; no pronostica cantidad de peces ni reemplaza avisos DHN/Capitanía.'},200,{'Cache-Control':'public, max-age=600'});
+}
 export default {
   async fetch(request,env,ctx){
     if(request.method==="OPTIONS") return new Response(null,{status:204,headers:cors});
@@ -452,13 +594,19 @@ export default {
         const home=new URL("/index.html",request.url);
         return env.ASSETS.fetch(new Request(home,request));
       }
-      if(u.pathname==="/api/health") return json({ok:true,time:Date.now(),service:"GeoSismosLatam API v8"});
+      if(u.pathname==="/api/health") return json({ok:true,time:Date.now(),service:"GeoSismosLatam API v16"});
       if(u.pathname==="/api/emergencies") return emergencies(request,ctx,env);
       if(u.pathname==="/api/enfen") return enfen(ctx,env);
       if(u.pathname==="/api/agriculture") return agriculture(ctx,env);
+      if(u.pathname==="/api/roads") return roads(ctx);
+      if(u.pathname==="/api/markets") return markets(request,ctx);
+      if(u.pathname==="/api/freight") return freightV15(request);
+      if(u.pathname==="/api/route") return routeApi(request);
+      if(u.pathname==="/api/agri-signals") return agriSignals(request,ctx);
+      if(u.pathname==="/api/marine/summary") return marineSummary(request);
       if(u.pathname==="/api/noaa/geocolor") return noaaGeoColor(ctx);
       if(u.pathname==="/api/noaa/cfsv2/precip") return noaaCfsv2Precip(request,ctx);
-      if(u.pathname==="/api/sigrid/latest") return json(await sigridLatest(ctx,env),200,{"Cache-Control":"public, max-age=300"});
+      if(u.pathname==="/api/sigrid/latest") return sigridLatest(ctx,env);
       if(u.pathname==="/api/dhn/wind") return dhnWind();
       if(u.pathname.startsWith("/api/wms/")){
         const source=u.pathname.split("/")[3];
@@ -477,8 +625,8 @@ export default {
   },
   async scheduled(event,env,ctx){
     const req=new Request("https://geosismoslatam.local/internal");
-    if(event.cron==="*/30 * * * *"){
-      ctx.waitUntil(Promise.allSettled([emergencies(req,ctx,env),enfen(ctx,env),sigridLatest(ctx,env)]));
+    if(event.cron==="*/10 * * * *"){
+      ctx.waitUntil(Promise.allSettled([roads(ctx),emergencies(req,ctx,env),sigridLatest(ctx,env)]));
     }else{
       ctx.waitUntil(Promise.allSettled([agriculture(ctx,env),enfen(ctx,env),sigridLatest(ctx,env)]));
     }

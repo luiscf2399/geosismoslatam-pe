@@ -1,11 +1,15 @@
-const CACHE='geosismos-v12-20260823';
-const ASSETS=['./','./index.html','./styles.css?v=12.0.0','./app.js?v=12.0.0','./logo.svg','./clif_logo.jpg','./manifest.webmanifest'];
-self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS).catch(()=>{})))});
-self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
+const CACHE='geosismos-v15-pwa-20260824';
+const CORE=[
+  './','./index.html','./styles.css?v=15.0.0','./app.js?v=15.0.0','./logo.svg','./clif_logo.jpg','./manifest.webmanifest','./v14_extension.css?v=15.0.0','./v15_extension.css?v=15.0.0','./v14_extension.js?v=15.0.0','./v15_extension.js?v=15.0.0',
+  './icons/apple-touch-icon-180.png','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png'
+];
+self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)).catch(()=>{}))});
+self.addEventListener('activate',e=>{e.waitUntil((async()=>{for(const k of await caches.keys())if(k!==CACHE)await caches.delete(k);await self.clients.claim()})())});
 self.addEventListener('fetch',e=>{
+  if(e.request.method!=='GET')return;
   const u=new URL(e.request.url);
-  if(u.origin!==location.origin || u.pathname.startsWith('/api/')) return;
-  e.respondWith(fetch(e.request).then(r=>{
-    const c=r.clone(); caches.open(CACHE).then(x=>x.put(e.request,c)); return r;
-  }).catch(()=>caches.match(e.request)));
+  if(u.origin!==location.origin||u.pathname.startsWith('/api/'))return;
+  const nav=e.request.mode==='navigate';
+  if(nav){e.respondWith(fetch(e.request).then(r=>{caches.open(CACHE).then(c=>c.put('./index.html',r.clone()));return r}).catch(()=>caches.match('./index.html')));return;}
+  e.respondWith(caches.match(e.request).then(hit=>hit||fetch(e.request).then(r=>{if(r.ok)caches.open(CACHE).then(c=>c.put(e.request,r.clone()));return r})));
 });
