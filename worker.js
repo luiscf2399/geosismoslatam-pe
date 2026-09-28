@@ -754,15 +754,18 @@ function mefPortalCookieHeader(request){
 }
 
 async function proxyMefPortal(request){
-  const incoming=new URL(request.url),prefix='/mef-portal/transparencia';
-  if(!(incoming.pathname===prefix||incoming.pathname.startsWith(`${prefix}/`)))return json({error:'Ruta del portal MEF no permitida.'},404);
+  const incoming=new URL(request.url),prefix='/mef-portal';
+  if(!incoming.pathname.startsWith(`${prefix}/`))return json({error:'Ruta del portal MEF no permitida.'},404);
   if(!['GET','HEAD','POST'].includes(request.method))return json({error:'Método no permitido para la Consulta Amigable.'},405);
-  const target=new URL(incoming.pathname.slice('/mef-portal'.length)+incoming.search,MEF_PORTAL_ORIGIN);
-  if(target.origin!==MEF_PORTAL_ORIGIN||!target.pathname.startsWith('/transparencia/'))return json({error:'Destino MEF no permitido.'},404);
+  const target=new URL(incoming.pathname.slice(prefix.length)+incoming.search,MEF_PORTAL_ORIGIN);
+  const allowedPath=target.pathname.startsWith('/transparencia/')||target.pathname==='/_Incapsula_Resource';
+  if(target.origin!==MEF_PORTAL_ORIGIN||!allowedPath)return json({error:'Destino MEF no permitido.'},404);
   const headers=new Headers();
   for(const name of ['accept','content-type','accept-language']){const value=request.headers.get(name);if(value)headers.set(name,value)}
+  if(!headers.has('accept'))headers.set('accept','text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8');
+  if(!headers.has('accept-language'))headers.set('accept-language','es-PE,es;q=0.9,en;q=0.8');
   const cookie=mefPortalCookieHeader(request);if(cookie)headers.set('cookie',cookie);
-  headers.set('user-agent','Mozilla/5.0 (compatible; GeoSismosLatam/16.16; portal ciudadano)');
+  headers.set('user-agent','Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36');
   headers.set('referer',`${MEF_PORTAL_ORIGIN}/transparencia/Navegador/Default.aspx`);
   if(request.method==='POST')headers.set('origin',MEF_PORTAL_ORIGIN);
   let requestBody;
@@ -785,14 +788,14 @@ async function proxyMefPortal(request){
   const location=response.headers.get('location');
   if(location){
     const redirect=new URL(location,target);
-    if(redirect.origin===MEF_PORTAL_ORIGIN&&redirect.pathname.startsWith('/transparencia/'))outHeaders.set('location',`/mef-portal${redirect.pathname}${redirect.search}${redirect.hash}`);
+    if(redirect.origin===MEF_PORTAL_ORIGIN&&(redirect.pathname.startsWith('/transparencia/')||redirect.pathname==='/_Incapsula_Resource'))outHeaders.set('location',`/mef-portal${redirect.pathname}${redirect.search}${redirect.hash}`);
   }
   const type=response.headers.get('content-type')||'';
   let body=response.body;
   if(body&&/(?:text\/html|javascript|ecmascript|text\/css)/i.test(type)){
     const charset=(type.match(/charset=([^;]+)/i)||[])[1]?.trim()||'utf-8';
     const source=new TextDecoder(charset).decode(await response.arrayBuffer());
-    const rewritten=source.replace(/\/transparencia\//g,'/mef-portal/transparencia/').replace(/https?:\/\/apps5\.mineco\.gob\.pe\/mef-portal\/transparencia/ig,'/mef-portal/transparencia').replace(/window\.parent\.location/g,'window.location');
+    const rewritten=source.replace(/\/transparencia\//g,'/mef-portal/transparencia/').replace(/\/_Incapsula_Resource/g,'/mef-portal/_Incapsula_Resource').replace(/\b(visid_incap_\d+|incap_ses_\d+_\d+|nlbi_\d+)\b/g,'GS-MEF-$1').replace(/https?:\/\/apps5\.mineco\.gob\.pe\/mef-portal\/transparencia/ig,'/mef-portal/transparencia').replace(/window\.parent\.location/g,'window.location');
     body=rewritten;
     outHeaders.set('content-type',type.match(/charset=/i)?type.replace(/charset=[^;]+/i,'charset=utf-8'):`${type}; charset=utf-8`);
   }
@@ -835,7 +838,7 @@ function parseInviertePublicPage(html,cui){
 }
 async function fetchInviertePublic(cui){
   const url=`${MEF_INVESTMENT_ORIGIN}/invierte/ejecucion/traeListaEjecucionSimplePublica/${cui}`;
-  const response=await fetch(url,{headers:{'User-Agent':'Mozilla/5.0 (compatible; GeoSismosLatam/16.16)','Referer':INVIERTE_PUBLIC_URL},signal:AbortSignal.timeout(18000)});
+  const response=await fetch(url,{headers:{'User-Agent':'Mozilla/5.0 (compatible; GeoSismosLatam/16.18)','Referer':INVIERTE_PUBLIC_URL},signal:AbortSignal.timeout(18000)});
   if(!response.ok)throw new Error(`Invierte.pe HTTP ${response.status}`);
   return parseInviertePublicPage(await response.text(),cui);
 }
@@ -907,7 +910,7 @@ export default {
         const home=new URL("/index.html",request.url);
         return env.ASSETS.fetch(new Request(home,request));
       }
-      if(u.pathname==="/api/health") return json({ok:true,time:Date.now(),service:"GeoSismosLatam API v16.16"});
+      if(u.pathname==="/api/health") return json({ok:true,time:Date.now(),service:"GeoSismosLatam API v16.18"});
       if(u.pathname==="/api/emergencies") return emergencies(request,ctx,env);
       if(u.pathname==="/api/enfen") return enfen(ctx,env);
       if(u.pathname==="/api/agriculture") return agriculture(ctx,env);

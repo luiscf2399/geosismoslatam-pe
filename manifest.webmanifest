@@ -4,7 +4,7 @@
   "short_name": "GeoSismos",
   "description": "Portal ciudadano de sismos, clima, riesgos, carreteras, agricultura, mercados y prevención para Perú.",
   "lang": "es-PE",
-  "start_url": "./?source=pwa&v=16.16",
+  "start_url": "./?source=pwa&v=16.18",
   "scope": "./",
   "display": "standalone",
   "display_override": [

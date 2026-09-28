@@ -22,7 +22,8 @@
 <link rel="stylesheet" href="v16_4_extension.css?v=16.5.0">
 <link rel="stylesheet" href="marine_pro.css?v=16.12">
 <link rel="stylesheet" href="v16_13_compact.css?v=16.14.0">
-<link rel="stylesheet" href="v16_15_mef.css?v=16.16.0">
+<link rel="stylesheet" href="v16_15_mef.css?v=16.18.0">
+<link rel="stylesheet" href="v16_17_contrast.css?v=16.18.0">
 </head>
 <body>
 <div id="iosInstallBanner" class="ios-install-banner" hidden>
@@ -782,7 +783,7 @@
     <label>AÑO FISCAL<select id="mefYear"><option value="2026" selected>2026</option></select></label>
     <label>PROVINCIA<select id="mefProvince" disabled><option value="">Cargando catálogo…</option></select></label>
     <label>DISTRITO<select id="mefDistrict" disabled><option value="">Elige una provincia</option></select></label>
-    <button class="btn" id="mefRefresh" type="button">↻ Consultar MEF</button>
+    <button class="btn" id="mefRefresh" type="button">↻ Consultar / reintentar MEF</button>
     <button class="btn primary" id="mefReport" type="button" disabled>Reemitir informe PDF</button>
     <a class="btn mef-direct-link" href="https://apps5.mineco.gob.pe/transparencia/Navegador/Default.aspx" target="_blank" rel="noopener noreferrer">Abrir MEF ↗</a>
   </div>
@@ -794,6 +795,11 @@
   </section>
   <div class="mef-portal-shell">
     <iframe id="mefPortal" title="Consulta Amigable oficial del MEF · filtro Producto/Proyecto" data-src="/mef-portal/transparencia/Navegador/Navegar.aspx" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+    <div class="mef-portal-fallback" id="mefPortalFallback" hidden role="status">
+      <b id="mefPortalFallbackTitle">El visor oficial aparecerá aquí cuando esté activo el puente de Cloudflare.</b>
+      <span id="mefPortalFallbackText">La versión publicada aún está devolviendo GeoSismos en lugar del portal MEF. Mientras se actualiza el Worker, puedes consultar la fuente oficial directamente.</span>
+      <a href="https://apps5.mineco.gob.pe/transparencia/Navegador/Default.aspx" target="_blank" rel="noopener noreferrer">Abrir Consulta Amigable del MEF ↗</a>
+    </div>
   </div>
 </section>
 
@@ -904,12 +910,12 @@
   const b=document.getElementById('iosInstallBanner');
   if(b && isIOS && isSafari && !standalone && !dismissed) b.hidden=false;
   document.getElementById('iosInstallClose')?.addEventListener('click',()=>{b.hidden=true;localStorage.setItem('gs_ios_install_dismissed','1')});
-  if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=16.16').catch(console.warn));}
+  if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=16.18').catch(console.warn));}
 })();
 </script>
 <link rel="stylesheet" href="v16_6_smart_inputs.css?v=16.6.0">
 <script src="v16_6_smart_inputs.js?v=16.6.0"></script>
 <script src="marine_pro.js?v=16.12"></script>
-<script src="v16_15_mef.js?v=16.16.0"></script>
+<script src="v16_15_mef.js?v=16.18.0"></script>
 </body>
 </html>

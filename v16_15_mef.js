@@ -6,6 +6,7 @@ const year=byId('mefYear');
 const province=byId('mefProvince');
 const district=byId('mefDistrict');
 const portal=byId('mefPortal');
+const portalFallback=byId('mefPortalFallback');
 const sourcePath=portal.dataset.src;
 const reportButton=byId('mefReport');
 const preview=byId('mefReportPreview');
@@ -51,36 +52,45 @@ function frameElement(){try{return portal.contentDocument?.querySelector('frame#
 function frameDocument(){try{const frame=frameElement();return frame===portal?portal.contentDocument:frame?.contentDocument||null}catch{return null}}
 function pageSignature(doc){return `${doc?.defaultView?.location?.href||''}|${doc?.getElementById('ctl00_CPH1_Mt0')?.innerText||''}|${doc?.querySelector('#ctl00_CPH1_DrpYear')?.value||''}`}
 function delay(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
+function portalProxyError(){const error=new Error('El visor recibió GeoSismos en vez del MEF. Falta publicar el Worker con la ruta /mef-portal/*; el botón Abrir MEF permite consultar la fuente mientras se actualiza Cloudflare.');error.code='MEF_PROXY_UNAVAILABLE';return error}
+function portalBlockedError(){const error=new Error('El MEF respondió con su protección anti-bots al puente automático. No se pudo verificar la tabla desde GeoSismos; usa Abrir MEF para continuar en el portal oficial.');error.code='MEF_ACCESS_BLOCKED';return error}
+function isGeoSismosFallback(doc){return normalize(doc?.title||'').includes('GEOSISMOSLATAM')||Boolean(doc?.querySelector('header.top,#mefPortal,[data-view="mef"]'))}
+function isPortalAccessBlocked(doc){return /incapsula|request unsuccessful|incident_id/i.test(`${doc?.body?.innerText||''} ${(doc?.documentElement?.innerHTML||'').slice(0,12000)}`)}
 
-async function waitForPortalPage(token,timeout=30000){
+async function waitForPortalPage(token,timeout=120000){
  const deadline=Date.now()+timeout;
  while(Date.now()<deadline){
   if(token!==sequence)throw new DOMException('La consulta fue reemplazada.','AbortError');
   const doc=frameDocument();
+  if(isGeoSismosFallback(doc))throw portalProxyError();
   if(doc?.getElementById('ctl00_CPH1_DrpYear')&&doc.querySelector('#ctl00_CPH1_Mt0'))return{frame:frameElement(),doc};
+  if(isPortalAccessBlocked(doc))throw portalBlockedError();
   const text=doc?.body?.innerText||'';
   if(/Ha surgido un error|Failed to convert parameter|403 Forbidden/i.test(text))throw new Error('El portal MEF no aceptó la consulta. Abre el enlace oficial y vuelve a intentarlo.');
   await delay(150);
  }
- throw new Error('El portal MEF tardó demasiado. Puedes abrir la fuente oficial directamente.');
+ throw new Error('La Consulta Amigable no terminó de cargar después de dos minutos. Reintentaré al volver a consultar.');
 }
 
-async function waitForPortalChange(frame,oldDoc,oldSignature,token,timeout=30000){
+async function waitForPortalChange(frame,oldDoc,oldSignature,token,timeout=60000){
  const deadline=Date.now()+timeout;
  while(Date.now()<deadline){
   if(token!==sequence)throw new DOMException('La consulta fue reemplazada.','AbortError');
   const doc=frameDocument();
+  if(isGeoSismosFallback(doc))throw portalProxyError();
   if(doc?.getElementById('ctl00_CPH1_Mt0')&&(doc!==oldDoc||pageSignature(doc)!==oldSignature))return{frame:frameElement(),doc};
+  if(isPortalAccessBlocked(doc))throw portalBlockedError();
   const text=doc?.body?.innerText||'';
   if(/Ha surgido un error|Failed to convert parameter|403 Forbidden/i.test(text))throw new Error('El MEF rechazó uno de los filtros. Actualiza e inténtalo otra vez.');
   await delay(150);
  }
- throw new Error('El portal MEF no completó el filtro solicitado.');
+ throw new Error('El MEF no respondió al filtro en un minuto. Puedes volver a consultar sin cambiar tus selecciones.');
 }
 
 async function changeDimension(buttonId,match,context,token){
  const button=context.doc.getElementById(buttonId);
  if(!button)throw new Error('No se encontró el siguiente nivel de Consulta Amigable en el MEF.');
+ setStatus(`Consulta oficial MEF · esperando respuesta de ${button.value||'el siguiente filtro'}…`,'loading');
  const oldDoc=context.doc,signature=pageSignature(oldDoc);
  button.click();
  context=await waitForPortalChange(context.frame,oldDoc,signature,token);
@@ -175,12 +185,22 @@ function observeVisibleTable(doc){
 async function refreshPortal(){
  const token=++sequence;initialized=true;reportButton.disabled=true;preview.hidden=true;
  portalObserver?.disconnect();
+ portal.hidden=false;portalFallback.hidden=true;
  projectList.replaceChildren();projectCount.textContent='Consultando la fuente oficial…';
- setStatus('Abriendo Consulta Amigable del MEF: año, Arequipa, ámbito y Producto/Proyecto…','loading');
+ setStatus('Abriendo la Consulta Amigable oficial. El primer ingreso puede tardar hasta dos minutos; si el MEF no responde, reintentaré automáticamente…','loading');
  const separator=sourcePath.includes('?')?'&':'?';
- portal.src=`${sourcePath}${separator}y=${encodeURIComponent(year.value)}&ap=Proyecto&geo=${Date.now()}`;
  try{
-  let context=await waitForPortalPage(token);
+  let context=null,lastError=null;
+  for(let attempt=1;attempt<=2&&!context;attempt++){
+   portal.src=`${sourcePath}${separator}y=${encodeURIComponent(year.value)}&ap=Proyecto&geo=${Date.now()}`;
+   try{context=await waitForPortalPage(token,120000)}catch(error){
+    lastError=error;
+    if(error.name==='AbortError'||error.code==='MEF_PROXY_UNAVAILABLE'||attempt===2)throw error;
+    setStatus('El portal MEF sigue tardando. Esperaré unos segundos y volveré a abrirlo automáticamente…','loading');
+    await delay(2500);
+   }
+  }
+  if(!context)throw lastError||new Error('No se pudo abrir la Consulta Amigable.');
   context=await applySelection(context,token);
   if(token!==sequence)return;
   const scope=district.value?`${district.value}, ${province.value}`:province.value?`provincia ${province.value}`:'toda la región Arequipa';
@@ -190,8 +210,18 @@ async function refreshPortal(){
   setStatus(count?`MEF oficial conectado · año ${year.value} · ${scope}. La lista replica solo las ${count} filas visibles del portal; PIM, devengado y Girado corresponden a cada fila.`:'Consulta aplicada, pero el MEF no devolvió filas visibles para Producto/Proyecto.',count?'':'error');
  }catch(error){
   if(error.name==='AbortError')return;
+  if(error.code==='MEF_PROXY_UNAVAILABLE'||error.code==='MEF_ACCESS_BLOCKED'){
+   portal.hidden=true;portalFallback.hidden=false;
+   if(error.code==='MEF_ACCESS_BLOCKED'){
+    byId('mefPortalFallbackTitle').textContent='El MEF bloqueó la consulta automática desde el puente.';
+    byId('mefPortalFallbackText').textContent='La protección anti-bots del portal impidió verificar las filas. El informe no inventa datos: abre la fuente oficial para consultar el gasto y vuelve a intentar más tarde.';
+   }else{
+    byId('mefPortalFallbackTitle').textContent='El visor oficial aparecerá aquí cuando esté activo el puente de Cloudflare.';
+    byId('mefPortalFallbackText').textContent='La versión publicada aún está devolviendo GeoSismos en lugar del portal MEF. Mientras se actualiza el Worker, puedes consultar la fuente oficial directamente.';
+   }
+  }
   projectCount.textContent='No se pudo leer la tabla oficial.';
-  setStatus(`${error.message} Usa “Abrir MEF” si el portal está temporalmente fuera de servicio.`,'error');
+  setStatus(error.message,'error');
  }
 }
 

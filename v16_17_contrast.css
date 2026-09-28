@@ -1,0 +1,70 @@
+.view{color:#382819}
+.view .panel,.view .hero-card,.view .event-detail-panel{color:#382819}
+.view .panel p,.view .panel li,.view .panel small,.view .hero-card p,.view .event-detail-panel small{color:#58452f;opacity:1;font-size:.75rem;line-height:1.5}
+.view .panel h2,.view .panel h3,.view .panel b,.view .hero-card h2,.view .hero-card h3{color:#382819}
+.view .panel a:not(.btn),.view .event-detail-panel a:not(.btn){color:#74420f}
+.view .map-head,.view .map-head b,.view .map-head span,.view .map-head strong,.view .map-head label,.view .map-head button{color:#fff8ec}
+.view .map-head b{font-size:.8rem}
+.view .map-head small,.view .map-head p{color:#e6edf0;font-size:.72rem}
+.view .section-hero{color:#fff8ec}
+.view .section-hero h2{color:#fff8ec}
+.view .section-hero p{color:#e2e9e8}
+.view .section-hero span{color:#ffd27e}
+.view .inline-context-legend,.view .inline-context-legend b,.view .inline-context-legend span,.view .inline-context-legend summary{color:#fff7e9}
+.view .inline-legend-summary b{font-size:.82rem}
+.view .inline-context-legend small,.view .inline-context-legend p{color:#e4edf1;opacity:1;font-size:.72rem}
+.view .inline-context-legend .inline-legend-toggle{color:#ffd27e}
+.view .inline-legend-meta span{border-color:#6b7880;background:#183545;color:#fff4df;opacity:1}
+.view .inline-legend-item{border-color:#687982}
+.view .inline-legend-item span{color:#e1eaf0;opacity:1}
+.view .inline-legend-item b{font-size:.76rem}
+.view .inline-legend-item span{font-size:.7rem}
+.view .context-legend,.view .map-legend-panel{color:#fff7eb}
+.view .context-legend h3,.view .map-legend-panel h3,.view .map-legend-panel b{color:#fff7eb}
+.view .context-legend-intro,.view .context-legend p,.view .map-legend-head p,.view .legend-table td,.view .legend-row small,.view .legend-foot,.view .map-legend-panel .legend-foot{color:#e0e8eb;font-size:.72rem;line-height:1.45}
+.view .legend-row b,.view .legend-table td:nth-child(2){color:#fff8ed}
+.view .legend-helpbar,.view .legend-note{color:#fff0ce}
+.view .map-legend,.view .heat-legend,.view .callout,.view .emergency-legend,.view .agri-legend,.view .marine-legend,.view .maptools,.view .subtoolbar{color:#fff8ed}
+.view .map-legend small,.view .heat-legend small,.view .callout small,.view .emergency-legend small,.view .agri-legend small,.view .marine-legend small,.view .maptools label{color:#e5edf0;opacity:1}
+.view .risk-callout span,.view .risk-callout b{color:#fff8ed}
+.view .status-pills span,.view .source-stack b,.view .source-badge,.view .official-chip,.view .impact-tags span,.view .crop-stage span,.view .soil-explain summary,.view .soil-explain summary b,.view .zone .level{color:#fff7e9}
+.view .status-pills span,.view .source-badge,.view .official-chip,.view .impact-tags span,.view .crop-stage span{font-size:.68rem}
+.view .status-pills span{background:#183747;border-color:#567181}
+.view .source-badge,.view .official-chip{background:#315d3b;border:1px solid #57815f}
+.view .impact-tags span{background:#4a3516;border-color:#a17b36}
+.view .info-panel p,.view .sigrid-watch p,.view .risk-summary p,.view .elnino-card p{color:#51402c;font-size:.75rem;line-height:1.5}
+.view .info-panel h3,.view .sigrid-watch h3,.view .risk-summary h3,.view .elnino-card h3{color:#35281a;font-size:.9rem}
+.view .info-facts{border-color:#cdbb9e}
+.view .info-facts>span,.view .info-facts small,.view .metric-grid span{color:#644e34;opacity:1;font-size:.72rem}
+.view .info-facts>b,.view .info-facts strong,.view .metric-grid b{color:#332619;font-size:.78rem}
+.view .info-facts .study-hit{color:#fff6e6;background:#193747;border-color:#567181}
+.view .info-facts .study-hit b{color:#fff6e6}
+.view .info-facts .study-hit small{color:#e6edf0}
+.view .info-links a{color:#70400e;background:#fff4df;border-color:#bd975f}
+.view .info-links a{font-size:.72rem;padding:7px 9px}
+.view .metric-grid>div{background:#f3e7d3;border-color:#cfb88f}
+.view .risk-mode-tabs button,.view .risk-tabs button,.view .maptools button,.view .segmented button{color:#fff7e9}
+.view .risk-mode-tabs button,.view .risk-tabs button,.view .maptools button,.view .segmented button{font-size:.72rem;min-height:30px}
+.view .risk-mode-tabs button.active,.view .risk-tabs button.active,.view .maptools button.active,.view .segmented button.active{color:#fff}
+.view .map-panel .layer-status{color:#fff8e8;background:#123244;border-color:#bb8535}
+.view .map-panel .admin-label{color:#fff;text-shadow:0 1px 3px #000,0 0 5px #000}
+.mainnav button small{font-size:9px}
+.view footer,.view footer p,.view footer .credits,.view footer .credits b{color:#e6edf0}
+.view footer .credits span{color:#fff3db;border:1px solid #385669}
+.view footer .footer-contact a{color:#a9e0ff}
+.view .map-legend-panel .legend-table th,.view .legend-situation-grid>div{color:#fff8ed}
+.view .legend-situation-grid span{color:#d2e9f1}
+.view .legend-situation-grid b{color:#fff8ed}
+.view .soil-explain details,.view .vs30-note,.view .freight-location,.view .number-unit span,.view .estimate-box,.view .ad-mini{color:#fff4df}
+.view .soil-explain details p,.view .soil-explain summary small,.view .vs30-note span,.view .freight-help,.view .freight-location label,.view .freight-load-field label,.view .freight-load-field small,.view .freight-ubigeo-status,.view .estimate-box p,.view .ad-mini small{color:#e5edf0;opacity:1}
+.view .freight-location legend,.view .estimate-box b,.view .ad-mini b{color:#fff3d8}
+.view .freight-location select,.view .number-unit input{color:#fff;background:#0a2230}
+.view .zone,.view .crop-stage span{color:#fff4df}
+footer,footer p,footer .credits,footer .credits b{color:#e6edf0}
+footer .credits span{color:#fff3db;border:1px solid #385669}
+footer .footer-contact a{color:#a9e0ff}
+.mef-portal-fallback{min-height:240px;display:grid;align-content:center;justify-items:center;gap:10px;padding:24px;background:#f3e7d3;color:#382819;text-align:center;border-top:1px solid #d9c6a7}
+.mef-portal-fallback[hidden]{display:none}
+.mef-portal-fallback b{font-size:16px}
+.mef-portal-fallback span{max-width:760px;font-size:13px;line-height:1.55;color:#5b4934}
+.mef-portal-fallback a{display:inline-block;padding:10px 14px;border-radius:7px;background:#8f4d1b;color:#fff8ed;font-weight:800;text-decoration:none}
