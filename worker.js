@@ -741,17 +741,46 @@ async function placeReverse(request){
   const j=await r.json();
   return json({ok:true,label:j.display_name||`${lat.toFixed(5)}, ${lon.toFixed(5)}`,lat,lon},200,{'Cache-Control':'public, max-age=86400'});
 }
+
+const MEF_INVESTMENTS_API='https://api.datosabiertos.mef.gob.pe/DatosAbiertos/v1/datastore_search';
+const MEF_INVESTMENTS_RESOURCE='f9cc4ba0-931a-4b70-86c9-eacbd8c68596';
+const MEF_PAGE_SIZE=100,MEF_MAX_RECORDS=5000;
+function normalizeMefFilter(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9 -]/g,' ').replace(/\s+/g,' ').trim()}
+async function fetchMefInvestmentPage(filters,offset){
+  const url=new URL(MEF_INVESTMENTS_API);url.searchParams.set('resource_id',MEF_INVESTMENTS_RESOURCE);url.searchParams.set('limit',String(MEF_PAGE_SIZE));url.searchParams.set('offset',String(offset));url.searchParams.set('filters',JSON.stringify(filters));
+  const response=await fetch(url,{signal:AbortSignal.timeout(25000),cf:{cacheTtl:300,cacheEverything:true}});
+  if(!response.ok)throw new Error(`MEF HTTP ${response.status}`);
+  const payload=await response.json();
+  if(String(payload.sucess).toLowerCase()!=='true'||!Array.isArray(payload.records))throw new Error('Respuesta incompleta del recurso MEF');
+  return payload;
+}
+async function mefInvestments(request){
+  if(request.method!=='GET')return json({error:'Solo se permite consulta GET.'},405);
+  const url=new URL(request.url),year=url.searchParams.get('year')||'2026';
+  const department=normalizeMefFilter(url.searchParams.get('department')||'AREQUIPA');
+  const province=normalizeMefFilter(url.searchParams.get('province')||'CARAVELI');
+  const district=normalizeMefFilter(url.searchParams.get('district')||'BELLA UNION');
+  if(!/^\d{4}$/.test(year)||[department,province,district].some(value=>!value||value.length>80))return json({error:'Año o ámbito territorial no válido.'},400);
+  const filters={ANIO_PROCESO:year,DEPARTAMENTO:department,PROVINCIA:province,DISTRITO:district};
+  const first=await fetchMefInvestmentPage(filters,0),total=Number(first.result?.include_total);
+  if(!Number.isFinite(total))throw new Error('El MEF no informó el total de resultados.');
+  const records=[...first.records],limit=Math.min(total,MEF_MAX_RECORDS);
+  for(let offset=records.length;offset<limit;offset+=MEF_PAGE_SIZE){const page=await fetchMefInvestmentPage(filters,offset);if(!page.records.length)break;records.push(...page.records)}
+  return json({source:'MEF Datos Abiertos · Detalle de inversiones',resourceId:MEF_INVESTMENTS_RESOURCE,filters,total,records,complete:records.length===total,fetchedAt:new Date().toISOString()},200,{'Cache-Control':'public, max-age=60, s-maxage=300'});
+}
+
 export default {
   async fetch(request,env,ctx){
     if(request.method==="OPTIONS") return new Response(null,{status:204,headers:cors});
     const u=new URL(request.url);
     try{
       if(u.pathname==="/api/quakes") return quakes(request,ctx);
+      if(u.pathname==="/api/mef/investments") return await mefInvestments(request);
       if(u.pathname==="/"){
         const home=new URL("/index.html",request.url);
         return env.ASSETS.fetch(new Request(home,request));
       }
-      if(u.pathname==="/api/health") return json({ok:true,time:Date.now(),service:"GeoSismosLatam API v16.12"});
+      if(u.pathname==="/api/health") return json({ok:true,time:Date.now(),service:"GeoSismosLatam API v16.13"});
       if(u.pathname==="/api/emergencies") return emergencies(request,ctx,env);
       if(u.pathname==="/api/enfen") return enfen(ctx,env);
       if(u.pathname==="/api/agriculture") return agriculture(ctx,env);

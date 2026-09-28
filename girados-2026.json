@@ -1,0 +1,36 @@
+{
+  "source": "MEF · Consulta Amigable · Ejecución de gasto",
+  "sourceUrl": "https://apps5.mineco.gob.pe/transparencia/Navegador/default.aspx",
+  "ssiUrl": "https://ofi5.mef.gob.pe/ssi/ssi/Index",
+  "year": 2026,
+  "updatedAt": "26/09/2026",
+  "verifiedAt": "27/09/2026",
+  "filters": {
+    "department": "AREQUIPA",
+    "province": "CARAVELI",
+    "district": "BELLA UNION",
+    "secEjec": "300372"
+  },
+  "joinKeys": ["ANIO_PROCESO", "DEPARTAMENTO", "PROVINCIA", "DISTRITO", "CODIGO_UNICO", "SEC_EJEC"],
+  "units": "Soles; Consulta Amigable muestra importes en soles enteros",
+  "records": [
+    { "cui": "2474080", "secEjec": "300372", "girado": 3178587, "status": "verified" },
+    { "cui": "2522668", "secEjec": "300372", "girado": 0, "status": "verified" },
+    { "cui": "2538236", "secEjec": "300372", "girado": 0, "status": "no_record_zero", "note": "Sin registro de gasto 2026 para este CUI en la consulta filtrada; SSI también muestra PIM 2026 = S/ 0 y devengado 2026 = S/ 0. Es cero para este ejercicio, no un acumulado histórico." },
+    { "cui": "2588067", "secEjec": "300372", "girado": 11832, "status": "verified" },
+    { "cui": "2701076", "secEjec": "300372", "girado": 2003, "status": "verified" },
+    { "cui": "2702478", "secEjec": "300372", "girado": 351010, "status": "verified" },
+    { "cui": "2703107", "secEjec": "300372", "girado": 542541, "status": "verified" },
+    { "cui": "2703249", "secEjec": "300372", "girado": 412900, "status": "verified" },
+    { "cui": "2712729", "secEjec": "300372", "girado": 193814, "status": "verified" },
+    { "cui": "2712914", "secEjec": "300372", "girado": 108468, "status": "verified" },
+    { "cui": "2712996", "secEjec": "300372", "girado": 799382, "status": "verified" },
+    { "cui": "2715281", "secEjec": "300372", "girado": 58359, "status": "verified" },
+    { "cui": "2726105", "secEjec": "300372", "girado": 184956, "status": "verified" },
+    { "cui": "2726267", "secEjec": "300372", "girado": 0, "status": "verified" },
+    { "cui": "2733079", "secEjec": "300372", "girado": 4000, "status": "verified" },
+    { "cui": "2734427", "secEjec": "300372", "girado": 0, "status": "verified" },
+    { "cui": "2736830", "secEjec": "300372", "girado": 0, "status": "verified" },
+    { "cui": "2737822", "secEjec": "300372", "girado": 0, "status": "verified" }
+  ]
+}

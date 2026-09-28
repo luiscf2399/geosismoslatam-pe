@@ -16,7 +16,7 @@ function ensureInlineLegend(view){
   if(!view)return null;
   let box=view.querySelector(':scope > .inline-context-legend');
   if(!box){
-    box=document.createElement('section');box.className='inline-context-legend';
+    box=document.createElement('details');box.className='inline-context-legend';
     const hero=view.querySelector('.section-hero');
     if(hero)hero.insertAdjacentElement('afterend',box); else view.prepend(box);
   }
@@ -33,7 +33,7 @@ function syncInlineLegend(){
   const horizon=$('contextLegendHorizon')?.textContent||'';
   let items=legendItemsFromGlobal();
   if(!items.length)items=[{label:'Mapa base',desc:'Sin capa temática seleccionada.',color:'#7aa8c2'}];
-  box.innerHTML=`<div class="inline-legend-main"><div><b>${esc(title)}</b><small>${esc(intro)}</small></div><div class="inline-legend-meta"><span>${esc(situation)}</span><span>${esc(variable)}${unit&&unit!=='—'?' · '+esc(unit):''}</span><span>${esc(horizon)}</span><span>${esc(source)}</span></div></div><div class="inline-legend-items">${items.map(x=>`<div class="inline-legend-item"><i style="background:${esc(x.color||'#8aa0ae')}"></i><b>${esc(x.label)}</b><span>${esc(x.desc)}</span></div>`).join('')}</div>`;
+  box.innerHTML=`<summary class="inline-legend-summary"><span><b>${esc(title)}</b><small>${esc(situation)} · ${esc(variable)}${unit&&unit!=='—'?' · '+esc(unit):''} · ${esc(horizon)} · ${esc(source)}</small></span><span class="inline-legend-toggle">Ver leyenda <i aria-hidden="true">⌄</i></span></summary><div class="inline-legend-content"><p>${esc(intro)}</p><div class="inline-legend-items">${items.map(x=>`<div class="inline-legend-item"><i style="background:${esc(x.color||'#8aa0ae')}"></i><b>${esc(x.label)}</b><span>${esc(x.desc)}</span></div>`).join('')}</div></div>`;
 }
 function hookLegend(){
   if(typeof window.setContextLegend==='function'&&!window.__gslV15LegendHook){
