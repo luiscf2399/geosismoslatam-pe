@@ -21,8 +21,9 @@
 <link rel="stylesheet" href="v16_2_extension.css?v=16.5.0">
 <link rel="stylesheet" href="v16_4_extension.css?v=16.5.0">
 <link rel="stylesheet" href="marine_pro.css?v=16.12">
-<link rel="stylesheet" href="v16_13_compact.css?v=16.13.0">
-<link rel="stylesheet" href="v16_13_mef.css?v=16.13.0">
+<link rel="stylesheet" href="v16_13_compact.css?v=16.14.0">
+<link rel="stylesheet" href="v16_13_mef.css?v=16.14.0">
+<link rel="stylesheet" href="v16_14_mef.css?v=16.14.0">
 </head>
 <body>
 <div id="iosInstallBanner" class="ios-install-banner" hidden>
@@ -47,15 +48,14 @@
 </header>
 
 <nav class="mainnav">
-  <button data-view="dashboard">⌁ <b>CENTRO</b><small>Situación cerca de mí</small></button>
   <button class="active" data-view="monitor">◉ <b>MONITOREO</b><small>Sismos en tiempo real</small></button>
   <button data-view="forecast">◌ <b>PROYECCIÓN</b><small>Análisis probabilístico</small></button>
+  <button data-view="mef">▤ <b>MEF</b><small>Cartera regional</small></button>
   <button data-view="rain">☁ <b>LLUVIAS</b><small>Precipitación y avisos</small></button>
   <button data-view="marine">≈ <b>MAR Y PESCA</b><small>Mareas · viento · pesca responsable</small></button>
   <button data-view="risk">⚠ <b>RIESGOS</b><small>Peligros y escenarios</small></button>
   <button data-view="soil">⌂ <b>SUELOS</b><small>Construcción segura</small></button>
   <button data-view="agriculture">✦ <b>AGRICULTURA</b><small>Siembras · cultivos · cosecha</small></button>
-  <button data-view="mef">▤ <b>INVERSIÓN</b><small>Seguimiento MEF</small></button>
   <button data-view="roads">▰ <b>CARRETERAS</b><small>Tráfico · incidentes · vías</small></button>
   <button data-view="news">▣ <b>ACTUALIDAD</b><small>Noticias y reportes</small></button>
   <button data-view="prevention">◉ <b>PREVENCIÓN</b><small>Guías y recomendaciones</small></button>
@@ -105,13 +105,6 @@
 </aside>
 
 <main>
-<section id="dashboard" class="view">
-  <div class="section-hero"><div><span class="eyebrow">CENTRO DE SITUACIÓN</span><h2>¿Qué está pasando cerca de mí?</h2><p>Resumen territorial integrado. Usa tu ubicación autorizada para acercar sismos, lluvias, carreteras, riesgos, mercados y condiciones marinas.</p></div><button id="dashLocate" class="btn">⌖ USAR MI UBICACIÓN</button></div>
-  <div id="v16QualityBar" class="v16-quality-bar"></div>
-  <div id="v16SituationGrid" class="v16-situation-grid"><div class="v16-card"><b>Cargando situación…</b><small>Las fuentes se consultan de forma progresiva para no bloquear el portal.</small></div></div>
-  <div class="v16-dashboard-actions"><button class="btn" data-jump="monitor">SISMOS</button><button class="btn" data-jump="rain">LLUVIAS</button><button class="btn" data-jump="roads">CARRETERAS</button><button class="btn" data-jump="risk">RIESGOS</button><button class="btn" data-jump="agriculture">MERCADOS</button><button class="btn" data-jump="marine">MAR</button></div>
-</section>
-
 <section id="monitor" class="view active">
   <div class="workspace three">
     <aside class="side left">
@@ -784,33 +777,34 @@
 
 <section id="mef" class="view">
   <div class="section-hero blue">
-    <div><span>SEGUIMIENTO DE INVERSIÓN PÚBLICA</span><h2>Inversiones del MEF</h2><p>Consulta el PIM de cada obra y revisa su Girado verificado.</p></div>
+    <div><span>CARTERA REGIONAL DE INVERSIÓN · AREQUIPA</span><h2>Seguimiento MEF de Arequipa</h2><p>Consulta las inversiones, el PIM y el devengado del año seleccionado para toda la región.</p></div>
   </div>
   <div class="mef-integrity-note">
     <span class="mef-note-icon" aria-hidden="true">i</span>
-    <p><b>Fuentes y alcance.</b> La cartera, el PIM y el devengado provienen de Datos Abiertos del MEF. El Girado se contrasta por año, ubicación, CUI y unidad ejecutora con Consulta Amigable. El corte verificable disponible es Arequipa / Caravelí / Bella Unión, año 2026, publicado al 26/09/2026; los demás casos se marcan “No verificado”. No representa el 100% de los sistemas MEF.</p>
+    <p><b>Datos directos, sin fórmulas de estimación.</b> La cartera regional y los montos PIM/devengado se consultan en Datos Abiertos del MEF. Girado por obra solo aparece cuando existe cruce verificado por CUI y unidad ejecutora, actualmente para un corte de Bella Unión. El reporte compartido, al 27/09/2026, muestra S/ 9,281,805 de gasto municipal; no es el monto de una obra individual ni el total regional.</p>
     <div class="mef-source-links"><a href="https://ofi5.mef.gob.pe/ssi/ssi/Index" target="_blank" rel="noopener noreferrer">SSI ↗</a><a href="https://www.mef.gob.pe/es/seguimiento-de-la-ejecucion-presupuestal-consulta-amigable" target="_blank" rel="noopener noreferrer">Consulta Amigable ↗</a></div>
   </div>
   <div class="mef-toolbar" role="group" aria-label="Filtros de inversiones MEF">
-    <label>DEPARTAMENTO<select id="mefRegion"><option>Arequipa</option><option>Cusco</option><option>Lima</option></select></label>
-    <label>PROVINCIA<select id="mefProvince"><option>Caravelí</option></select></label>
-    <label>DISTRITO<select id="mefDistrict"><option>Bella Unión</option></select></label>
-    <label>AÑO<select id="mefYear"><option value="2026">2026</option><option value="2025">2025</option></select></label>
+    <label>REGIÓN<select id="mefRegion"><option value="AREQUIPA" selected>Arequipa · completa</option></select></label>
+    <label>PROVINCIA<select id="mefProvince"><option value="">Todas las provincias</option></select></label>
+    <label>DISTRITO<select id="mefDistrict" disabled><option value="">Elige una provincia</option></select></label>
+    <label>AÑO<select id="mefYear"><option value="2026">2026</option></select></label>
     <button class="btn" id="mefRefresh" type="button">↻ Actualizar</button>
     <label class="mef-search">BUSCAR OBRA<input id="mefSearch" type="search" placeholder="Nombre o CUI" autocomplete="off"></label>
     <button class="btn primary" id="mefReport" type="button" disabled>↓ Informe resumen</button>
   </div>
-  <p class="mef-status" id="mefStatus" role="status" aria-live="polite">Selecciona el ámbito y pulsa Actualizar para consultar la cartera.</p>
+  <p class="mef-status" id="mefStatus" role="status" aria-live="polite">Abre esta pestaña para cargar la cartera de toda Arequipa; usa los filtros para acotar provincia o distrito.</p>
   <dl class="mef-totals" id="mefTotals" hidden>
-    <div><dt>Inversiones</dt><dd id="mefTotalProjects">—</dd></div>
-    <div><dt>PIM del conjunto</dt><dd id="mefTotalPim">—</dd></div>
-    <div><dt>Devengado del conjunto</dt><dd id="mefTotalDev">—</dd></div>
-    <div><dt>Girado verificado</dt><dd id="mefTotalGirado">—</dd></div>
+    <div><dt>Inversiones en el ámbito</dt><dd id="mefTotalProjects">—</dd></div>
+    <div><dt>PIM del ámbito</dt><dd id="mefTotalPim">—</dd></div>
+    <div><dt>Devengado del ámbito</dt><dd id="mefTotalDev">—</dd></div>
+    <div><dt>Girado con cruce CUI</dt><dd id="mefTotalGirado">—</dd><small>Subtotal parcial, no total regional</small></div>
   </dl>
   <div class="mef-report-preview" id="mefReportPreview" role="status" aria-live="polite" hidden></div>
   <section class="mef-results" aria-label="Resultados de inversión">
     <div class="mef-results-heading"><h3>OBRAS Y PROYECTOS</h3><span id="mefResultsCount">—</span></div>
     <div class="mef-project-list" id="mefProjects"></div>
+    <button class="btn mef-load-more" id="mefLoadMore" type="button" hidden>Mostrar 100 más</button>
     <div class="mef-empty" id="mefEmpty" hidden>No hay obras que coincidan con los filtros seleccionados.</div>
   </section>
 </section>
@@ -905,11 +899,11 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 <script src="https://unpkg.com/esri-leaflet@3.0.15/dist/esri-leaflet.js"></script>
-<script src="app.js?v=16.13.0"></script>
-<script src="v14_config.js?v=16.13.0"></script>
-<script src="v14_extension.js?v=16.13.0"></script>
+<script src="app.js?v=16.14.0"></script>
+<script src="v14_config.js?v=16.14.0"></script>
+<script src="v14_extension.js?v=16.14.0"></script>
 <script src="ubigeo_freight.js?v=16.6.0"></script>
-<script src="v15_extension.js?v=16.13.0"></script>
+<script src="v15_extension.js?v=16.14.0"></script>
 <script src="v16_extension.js?v=16.6.0"></script>
 <script src="v16_2_extension.js?v=16.6.0"></script>
 
@@ -922,12 +916,12 @@
   const b=document.getElementById('iosInstallBanner');
   if(b && isIOS && isSafari && !standalone && !dismissed) b.hidden=false;
   document.getElementById('iosInstallClose')?.addEventListener('click',()=>{b.hidden=true;localStorage.setItem('gs_ios_install_dismissed','1')});
-  if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=16.13').catch(console.warn));}
+  if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=16.14').catch(console.warn));}
 })();
 </script>
 <link rel="stylesheet" href="v16_6_smart_inputs.css?v=16.6.0">
 <script src="v16_6_smart_inputs.js?v=16.6.0"></script>
 <script src="marine_pro.js?v=16.12"></script>
-<script src="v16_13_mef.js?v=16.13.0"></script>
+<script src="v16_13_mef.js?v=16.14.0"></script>
 </body>
 </html>

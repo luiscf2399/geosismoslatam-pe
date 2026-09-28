@@ -1,0 +1,5 @@
+.mef-load-more{display:block;margin:12px auto 4px;padding:8px 18px;font-size:10px}
+.mef-load-more[hidden]{display:none}
+.mef-totals div small{color:#d8b96c;font-size:8px;line-height:1.3}
+.mef-project-meta{line-height:1.5}
+@media(max-width:600px){.mef-load-more{width:100%}}
