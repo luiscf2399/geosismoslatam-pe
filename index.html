@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#06182a">
+<meta name="theme-color" content="#8f4d1b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="GeoSismos">
@@ -22,8 +22,7 @@
 <link rel="stylesheet" href="v16_4_extension.css?v=16.5.0">
 <link rel="stylesheet" href="marine_pro.css?v=16.12">
 <link rel="stylesheet" href="v16_13_compact.css?v=16.14.0">
-<link rel="stylesheet" href="v16_13_mef.css?v=16.14.0">
-<link rel="stylesheet" href="v16_14_mef.css?v=16.14.0">
+<link rel="stylesheet" href="v16_15_mef.css?v=16.16.0">
 </head>
 <body>
 <div id="iosInstallBanner" class="ios-install-banner" hidden>
@@ -776,37 +775,26 @@
 
 
 <section id="mef" class="view">
-  <div class="section-hero blue">
-    <div><span>CARTERA REGIONAL DE INVERSIÓN · AREQUIPA</span><h2>Seguimiento MEF de Arequipa</h2><p>Consulta las inversiones, el PIM y el devengado del año seleccionado para toda la región.</p></div>
+  <div class="section-hero amber">
+    <div><span>FUENTE OFICIAL · TRANSPARENCIA ECONÓMICA</span><h2>Consulta Amigable del MEF</h2><p>Producto/Proyecto, PIM, devengado y Girado tal como los publica el MEF.</p></div>
   </div>
-  <div class="mef-integrity-note">
-    <span class="mef-note-icon" aria-hidden="true">i</span>
-    <p><b>Datos directos, sin fórmulas de estimación.</b> La cartera regional y los montos PIM/devengado se consultan en Datos Abiertos del MEF. Girado por obra solo aparece cuando existe cruce verificado por CUI y unidad ejecutora, actualmente para un corte de Bella Unión. El reporte compartido, al 27/09/2026, muestra S/ 9,281,805 de gasto municipal; no es el monto de una obra individual ni el total regional.</p>
-    <div class="mef-source-links"><a href="https://ofi5.mef.gob.pe/ssi/ssi/Index" target="_blank" rel="noopener noreferrer">SSI ↗</a><a href="https://www.mef.gob.pe/es/seguimiento-de-la-ejecucion-presupuestal-consulta-amigable" target="_blank" rel="noopener noreferrer">Consulta Amigable ↗</a></div>
-  </div>
-  <div class="mef-toolbar" role="group" aria-label="Filtros de inversiones MEF">
-    <label>REGIÓN<select id="mefRegion"><option value="AREQUIPA" selected>Arequipa · completa</option></select></label>
-    <label>PROVINCIA<select id="mefProvince"><option value="">Todas las provincias</option></select></label>
+  <div class="mef-toolbar" role="group" aria-label="Filtros de la Consulta Amigable del MEF">
+    <label>AÑO FISCAL<select id="mefYear"><option value="2026" selected>2026</option></select></label>
+    <label>PROVINCIA<select id="mefProvince" disabled><option value="">Cargando catálogo…</option></select></label>
     <label>DISTRITO<select id="mefDistrict" disabled><option value="">Elige una provincia</option></select></label>
-    <label>AÑO<select id="mefYear"><option value="2026">2026</option></select></label>
-    <button class="btn" id="mefRefresh" type="button">↻ Actualizar</button>
-    <label class="mef-search">BUSCAR OBRA<input id="mefSearch" type="search" placeholder="Nombre o CUI" autocomplete="off"></label>
-    <button class="btn primary" id="mefReport" type="button" disabled>↓ Informe resumen</button>
+    <button class="btn" id="mefRefresh" type="button">↻ Consultar MEF</button>
+    <button class="btn primary" id="mefReport" type="button" disabled>Reemitir informe PDF</button>
+    <a class="btn mef-direct-link" href="https://apps5.mineco.gob.pe/transparencia/Navegador/Default.aspx" target="_blank" rel="noopener noreferrer">Abrir MEF ↗</a>
   </div>
-  <p class="mef-status" id="mefStatus" role="status" aria-live="polite">Abre esta pestaña para cargar la cartera de toda Arequipa; usa los filtros para acotar provincia o distrito.</p>
-  <dl class="mef-totals" id="mefTotals" hidden>
-    <div><dt>Inversiones en el ámbito</dt><dd id="mefTotalProjects">—</dd></div>
-    <div><dt>PIM del ámbito</dt><dd id="mefTotalPim">—</dd></div>
-    <div><dt>Devengado del ámbito</dt><dd id="mefTotalDev">—</dd></div>
-    <div><dt>Girado con cruce CUI</dt><dd id="mefTotalGirado">—</dd><small>Subtotal parcial, no total regional</small></div>
-  </dl>
+  <p class="mef-status" id="mefStatus" role="status" aria-live="polite">Los proyectos se copiarán únicamente de las filas visibles de Producto/Proyecto en la Consulta Amigable del MEF.</p>
   <div class="mef-report-preview" id="mefReportPreview" role="status" aria-live="polite" hidden></div>
-  <section class="mef-results" aria-label="Resultados de inversión">
-    <div class="mef-results-heading"><h3>OBRAS Y PROYECTOS</h3><span id="mefResultsCount">—</span></div>
-    <div class="mef-project-list" id="mefProjects"></div>
-    <button class="btn mef-load-more" id="mefLoadMore" type="button" hidden>Mostrar 100 más</button>
-    <div class="mef-empty" id="mefEmpty" hidden>No hay obras que coincidan con los filtros seleccionados.</div>
+  <section class="mef-projects" aria-labelledby="mefProjectHeading">
+    <div class="mef-project-head"><div><h3 id="mefProjectHeading">Obras visibles en Producto/Proyecto</h3><p id="mefProjectCount">Selecciona una consulta para cargar sus filas oficiales.</p></div><span>Solo registros visibles del MEF</span></div>
+    <div id="mefProjectList" class="mef-project-list"><p class="mef-empty">Elige el año y ámbito para cargar la lista oficial.</p></div>
   </section>
+  <div class="mef-portal-shell">
+    <iframe id="mefPortal" title="Consulta Amigable oficial del MEF · filtro Producto/Proyecto" data-src="/mef-portal/transparencia/Navegador/Navegar.aspx" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+  </div>
 </section>
 
 <section id="roads" class="view">
@@ -916,12 +904,12 @@
   const b=document.getElementById('iosInstallBanner');
   if(b && isIOS && isSafari && !standalone && !dismissed) b.hidden=false;
   document.getElementById('iosInstallClose')?.addEventListener('click',()=>{b.hidden=true;localStorage.setItem('gs_ios_install_dismissed','1')});
-  if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=16.14').catch(console.warn));}
+  if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=16.16').catch(console.warn));}
 })();
 </script>
 <link rel="stylesheet" href="v16_6_smart_inputs.css?v=16.6.0">
 <script src="v16_6_smart_inputs.js?v=16.6.0"></script>
 <script src="marine_pro.js?v=16.12"></script>
-<script src="v16_13_mef.js?v=16.14.0"></script>
+<script src="v16_15_mef.js?v=16.16.0"></script>
 </body>
 </html>

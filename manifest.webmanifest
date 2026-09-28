@@ -4,7 +4,7 @@
   "short_name": "GeoSismos",
   "description": "Portal ciudadano de sismos, clima, riesgos, carreteras, agricultura, mercados y prevención para Perú.",
   "lang": "es-PE",
-  "start_url": "./?source=pwa&v=16.14",
+  "start_url": "./?source=pwa&v=16.16",
   "scope": "./",
   "display": "standalone",
   "display_override": [
@@ -12,8 +12,8 @@
     "minimal-ui"
   ],
   "orientation": "any",
-  "background_color": "#041522",
-  "theme_color": "#06182a",
+  "background_color": "#f5f0e7",
+  "theme_color": "#8f4d1b",
   "icons": [
     {
       "src": "icons/icon-192.png",
